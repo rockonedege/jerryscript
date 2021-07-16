@@ -57,9 +57,9 @@ typedef enum
 {
   ECMA_STATUS_API_AVAILABLE     = (1u << 0), /**< api available */
   ECMA_STATUS_DIRECT_EVAL       = (1u << 1), /**< eval is called directly */
-#if JERRY_PROPRETY_HASHMAP
+#if JERRY_PROPERTY_HASHMAP
   ECMA_STATUS_HIGH_PRESSURE_GC  = (1u << 2), /**< last gc was under high pressure */
-#endif /* JERRY_PROPRETY_HASHMAP */
+#endif /* JERRY_PROPERTY_HASHMAP */
   ECMA_STATUS_EXCEPTION         = (1u << 3), /**< last exception is a normal exception */
   ECMA_STATUS_ABORT             = (1u << 4), /**< last exception is an abort */
   ECMA_STATUS_ERROR_UPDATE      = (1u << 5), /**< the error_object_created_callback_p is called */
@@ -315,32 +315,6 @@ typedef struct ecma_native_pointer_chain_t
   ecma_native_pointer_t data; /**< pointer data */
   struct ecma_native_pointer_chain_t *next_p; /**< next in the list */
 } ecma_native_pointer_chain_t;
-
-/**
- * Option bits for ecma_parse_options_t.
- */
-typedef enum
-{
-  /* bit 0: ECMA_PARSE_STRICT_MODE */
-  /* bit 1: ECMA_PARSE_MODULE */
-  ECMA_PARSE_HAS_RESOURCE = (1 << 2), /**< resource_name_p and resource_name_length fields are valid */
-  ECMA_PARSE_HAS_START = (1 << 3), /**< start_line and start_column fields are valid */
-} ecma_parse_option_feature_t;
-
-/**
- * Variable configuration options for parsing functions such as ecma_parse or ecma_parse_function.
- */
-typedef struct
-{
-  uint32_t options; /**< combination of ecma_parse_option_feature_t values
-                     *   which enables parsing features */
-  const lit_utf8_byte_t *resource_name_p; /**< resource name (usually a file name)
-                                           *   if ECMA_PARSE_HAS_RESOURCE is set in options */
-  size_t resource_name_length; /**< length of resource name
-                                *   if ECMA_PARSE_HAS_RESOURCE is set in options */
-  uint32_t start_line; /**< start line of the source code if ECMA_PARSE_HAS_START is set in options */
-  uint32_t start_column; /**< start column of the source code if ECMA_PARSE_HAS_START is set in options */
-} ecma_parse_options_t;
 
 #if JERRY_ESNEXT
 
@@ -1032,6 +1006,7 @@ typedef struct
       union
       {
         uint8_t arguments_flags; /**< arguments object flags */
+        uint8_t error_type; /**< jerry_error_t type of native error objects */
 #if JERRY_BUILTIN_DATE
         uint8_t date_flags; /**< flags for date objects */
 #endif /* JERRY_BUILTIN_DATE */
@@ -1060,7 +1035,7 @@ typedef struct
       {
         uint16_t formal_params_number; /**< for arguments: formal parameters number */
 #if JERRY_MODULE_SYSTEM
-        uint8_t module_flags; /**< Module flags */
+        uint16_t module_flags; /**< Module flags */
 #endif /* JERRY_MODULE_SYSTEM */
 #if JERRY_ESNEXT
         uint16_t iterator_index; /**< for %Iterator%: [[%Iterator%NextIndex]] property */
@@ -1310,22 +1285,13 @@ typedef struct
  * Note:
  *      If a component of descriptor is undefined then corresponding
  *      field should contain it's default value.
- *      The struct members must be in this order or keep in sync with ecma_property_descriptor_status_flags_t.
  */
 typedef struct
 {
-
-  /** any combination of ecma_property_descriptor_status_flags_t bits */
-  uint16_t flags;
-
-  /** [[Value]] */
-  ecma_value_t value;
-
-  /** [[Get]] */
-  ecma_object_t *get_p;
-
-  /** [[Set]] */
-  ecma_object_t *set_p;
+  uint16_t flags; /**< any combination of jerry_property_descriptor_flags_t bits */
+  ecma_value_t value; /**< [[Value]] */
+  ecma_object_t *get_p; /**< [[Get]] */
+  ecma_object_t *set_p; /**< [[Set]] */
 } ecma_property_descriptor_t;
 
 /**
@@ -1950,7 +1916,7 @@ typedef struct
  */
 #define ECMA_EXTENDED_PRIMITIVE_MAX_REF (UINT32_MAX - (ECMA_EXTENDED_PRIMITIVE_REF_ONE - 1))
 
-#if JERRY_PROPRETY_HASHMAP
+#if JERRY_PROPERTY_HASHMAP
 
 /**
  * The lowest state of the ecma_prop_hashmap_alloc_state counter.
@@ -1964,7 +1930,7 @@ typedef struct
  */
 #define ECMA_PROP_HASHMAP_ALLOC_MAX 4
 
-#endif /* JERRY_PROPRETY_HASHMAP */
+#endif /* JERRY_PROPERTY_HASHMAP */
 
 /**
  * Number of values in a literal storage item
@@ -2276,16 +2242,29 @@ typedef struct
 #if (JERRY_STACK_LIMIT != 0)
 /**
  * Check the current stack usage. If the limit is reached a RangeError is raised.
+ * The macro argument specifies the return value which is usally ECMA_VALUE_ERROR or NULL.
  */
-#define ECMA_CHECK_STACK_USAGE() \
+#define ECMA_CHECK_STACK_USAGE_RETURN(RETURN_VALUE) \
 do \
 { \
   if (ecma_get_current_stack_usage () > CONFIG_MEM_STACK_LIMIT) \
   { \
-    return ecma_raise_range_error (ECMA_ERR_MSG ("Maximum call stack size exceeded")); \
+    ecma_raise_range_error (ECMA_ERR_MSG ("Maximum call stack size exceeded")); \
+    return RETURN_VALUE; \
   } \
 } while (0)
+
+/**
+ * Specialized version of ECMA_CHECK_STACK_USAGE_RETURN which returns ECMA_VALUE_ERROR.
+ * This version should be used in most cases.
+ */
+#define ECMA_CHECK_STACK_USAGE() ECMA_CHECK_STACK_USAGE_RETURN(ECMA_VALUE_ERROR)
 #else /* JERRY_STACK_LIMIT == 0) */
+/**
+ * If the stack limit is unlimited, this check is an empty macro.
+ */
+#define ECMA_CHECK_STACK_USAGE_RETURN(RETURN_VALUE)
+
 /**
  * If the stack limit is unlimited, this check is an empty macro.
  */

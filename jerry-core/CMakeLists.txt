@@ -143,6 +143,7 @@ set(SOURCE_CORE_FILES
   ecma/base/ecma-helpers.c
   ecma/base/ecma-init-finalize.c
   ecma/base/ecma-lcache.c
+  ecma/base/ecma-line-info.c
   ecma/base/ecma-literal-storage.c
   ecma/base/ecma-module.c
   ecma/base/ecma-property-hashmap.c
@@ -295,6 +296,7 @@ set(SOURCE_CORE_FILES
   parser/js/common.c
   parser/js/js-lexer.c
   parser/js/js-parser-expr.c
+  parser/js/js-parser-line-info-create.c
   parser/js/js-parser-mem.c
   parser/js/js-parser-module.c
   parser/js/js-parser-statm.c
@@ -334,6 +336,7 @@ if(ENABLE_AMALGAM)
     ecma/base/ecma-helpers.h
     ecma/base/ecma-init-finalize.h
     ecma/base/ecma-lcache.h
+    ecma/base/ecma-line-info.h
     ecma/base/ecma-literal-storage.h
     ecma/base/ecma-module.h
     ecma/base/ecma-property-hashmap.h
@@ -488,7 +491,7 @@ if(ENABLE_AMALGAM)
   set(AMALGAM_CONFIG_H "${CMAKE_BINARY_DIR}/amalgam/jerryscript-config.h")
 
   add_custom_command(OUTPUT ${AMALGAM_CORE_C} ${AMALGAM_CORE_H}
-                     COMMAND python ${CMAKE_SOURCE_DIR}/tools/amalgam.py
+                     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tools/amalgam.py
                              --jerry-core
                              --output-dir ${CMAKE_BINARY_DIR}/amalgam
                      DEPENDS ${SOURCE_CORE_FILES}

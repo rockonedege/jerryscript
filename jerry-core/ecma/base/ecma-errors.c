@@ -76,6 +76,13 @@ const char * const ecma_error_data_view_not_supported_p = "DataView support is d
 const char * const ecma_error_bigint_not_supported_p = "BigInt support is disabled";
 #endif /* !JERRY_BUILTIN_BIGINT  */
 
+#if !JERRY_BUILTIN_CONTAINER
+/**
+ * Error message, if Container support is disabled
+ */
+const char * const ecma_error_container_not_supported_p = "Container support is disabled";
+#endif /* JERRY_BUILTIN_CONTAINER  */
+
 #if JERRY_MODULE_SYSTEM
 /**
  * Error message, if argument is not a module
@@ -117,6 +124,11 @@ const char * const ecma_error_class_is_non_configurable = "Prototype property of
  * Error message, argument is not an object
  */
 const char * const ecma_error_argument_is_not_an_object = "Argument is not an object";
+
+/**
+ * Error message, argument is not a Proxy object
+ */
+const char * const ecma_error_argument_is_not_a_proxy = "Argument is not a Proxy object";
 
 /**
  * Error message, target is not a constructor

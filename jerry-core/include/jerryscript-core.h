@@ -78,6 +78,8 @@ bool jerry_value_is_string (const jerry_value_t value);
 bool jerry_value_is_symbol (const jerry_value_t value);
 bool jerry_value_is_bigint (const jerry_value_t value);
 bool jerry_value_is_undefined (const jerry_value_t value);
+bool jerry_value_is_true (const jerry_value_t value);
+bool jerry_value_is_false (const jerry_value_t value);
 
 jerry_type_t jerry_value_get_type (const jerry_value_t value);
 jerry_object_type_t jerry_object_get_type (const jerry_value_t value);
@@ -112,7 +114,6 @@ jerry_error_t jerry_get_error_type (jerry_value_t value);
 /**
  * Getter functions of 'jerry_value_t'.
  */
-bool jerry_get_boolean_value (const jerry_value_t value);
 double jerry_get_number_value (const jerry_value_t value);
 
 /**
@@ -225,9 +226,9 @@ jerry_value_t jerry_define_own_property (const jerry_value_t obj_val,
                                          const jerry_value_t prop_name_val,
                                          const jerry_property_descriptor_t *prop_desc_p);
 
-bool jerry_get_own_property_descriptor (const jerry_value_t obj_val,
-                                        const jerry_value_t prop_name_val,
-                                        jerry_property_descriptor_t *prop_desc_p);
+jerry_value_t jerry_get_own_property_descriptor (const jerry_value_t obj_val,
+                                                 const jerry_value_t prop_name_val,
+                                                 jerry_property_descriptor_t *prop_desc_p);
 void jerry_property_descriptor_free (const jerry_property_descriptor_t *prop_desc_p);
 
 jerry_value_t jerry_call_function (const jerry_value_t func_obj_val, const jerry_value_t this_val,
@@ -324,6 +325,7 @@ void jerry_get_bigint_digits (jerry_value_t value, uint64_t *digits_p, uint32_t 
  * Proxy functions.
  */
 jerry_value_t jerry_get_proxy_target (jerry_value_t proxy_value);
+jerry_value_t jerry_get_proxy_handler (jerry_value_t proxy_value);
 
 /**
  * Input validator functions.
@@ -350,6 +352,7 @@ void jerry_backtrace_capture (jerry_backtrace_callback_t callback, void *user_p)
 jerry_backtrace_frame_types_t jerry_backtrace_get_frame_type (jerry_backtrace_frame_t *frame_p);
 const jerry_backtrace_location_t *jerry_backtrace_get_location (jerry_backtrace_frame_t *frame_p);
 const jerry_value_t *jerry_backtrace_get_function (jerry_backtrace_frame_t *frame_p);
+const jerry_value_t *jerry_backtrace_get_this (jerry_backtrace_frame_t *frame_p);
 bool jerry_backtrace_is_strict (jerry_backtrace_frame_t *frame_p);
 
 /**
@@ -418,6 +421,7 @@ jerry_value_t jerry_create_container (jerry_container_type_t container_type,
                                       const jerry_value_t *arguments_list_p,
                                       jerry_length_t arguments_list_len);
 jerry_container_type_t jerry_get_container_type (const jerry_value_t value);
+jerry_value_t jerry_get_array_from_container (jerry_value_t value, bool *is_key_value_p);
 
 /**
  * @}

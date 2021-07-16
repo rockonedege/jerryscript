@@ -64,16 +64,18 @@ create_module (int id) /**< module id */
 
   if (id == 0)
   {
-    result = jerry_parse ((jerry_char_t *) "", 0, &module_parse_options);
+    jerry_char_t source[] = "export var a = 7";
+
+    result = jerry_parse (source, sizeof (source) - 1, &module_parse_options);
   }
   else
   {
-    jerry_char_t source[] = "import a from 'XX_module.mjs'";
+    jerry_char_t source[] = "export {a} from 'XX_module.mjs'";
 
-    TEST_ASSERT (id >= 1 && id <= 99 && source[15] == 'X' && source[16] == 'X');
+    TEST_ASSERT (id >= 1 && id <= 99 && source[17] == 'X' && source[18] == 'X');
 
-    source[15] = (jerry_char_t) ((id / 10) + '0');
-    source[16] = (jerry_char_t) ((id % 10) + '0');
+    source[17] = (jerry_char_t) ((id / 10) + '0');
+    source[18] = (jerry_char_t) ((id % 10) + '0');
 
     result = jerry_parse (source, sizeof (source) - 1, &module_parse_options);
   }
@@ -164,13 +166,13 @@ native_module_evaluate (const jerry_value_t native_module) /**< native module */
 
   jerry_value_t export = jerry_create_number (3.5);
   result = jerry_native_module_set_export (native_module, exp_val, export);
-  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_get_boolean_value (result));
+  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_value_is_true (result));
   jerry_release_value (result);
   jerry_release_value (export);
 
   export = jerry_create_string ((const jerry_char_t *) "str");
   result = jerry_native_module_set_export (native_module, other_exp_val, export);
-  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_get_boolean_value (result));
+  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_value_is_true (result));
   jerry_release_value (result);
   jerry_release_value (export);
 
@@ -313,7 +315,7 @@ main (void)
   counter = 31;
   terminate_with_error = false;
   result = jerry_module_link (module, resolve_callback2, NULL);
-  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_get_boolean_value (result));
+  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_value_is_true (result));
   TEST_ASSERT (counter == 32);
   jerry_release_value (result);
 
@@ -331,7 +333,7 @@ main (void)
   counter = 0;
   terminate_with_error = false;
   result = jerry_module_link (module, resolve_callback2, NULL);
-  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_get_boolean_value (result));
+  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_value_is_true (result));
   TEST_ASSERT (counter == 32);
   jerry_release_value (result);
   jerry_release_value (module);
@@ -438,7 +440,7 @@ main (void)
   TEST_ASSERT (jerry_module_get_state (module) == JERRY_MODULE_STATE_UNLINKED);
 
   result = jerry_module_link (module, NULL, NULL);
-  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_get_boolean_value (result));
+  TEST_ASSERT (jerry_value_is_boolean (result) && jerry_value_is_true (result));
   jerry_release_value (result);
 
   result = jerry_module_evaluate (module);

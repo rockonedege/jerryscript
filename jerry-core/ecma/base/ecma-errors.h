@@ -51,6 +51,10 @@ extern const char * const ecma_error_data_view_not_supported_p;
 extern const char * const ecma_error_bigint_not_supported_p;
 #endif /* !JERRY_BUILTIN_BIGINT */
 
+#if !JERRY_BUILTIN_CONTAINER
+extern const char * const ecma_error_container_not_supported_p;
+#endif /* !JERRY_BUILTIN_CONTAINER */
+
 #if JERRY_MODULE_SYSTEM
 extern const char * const ecma_error_not_module_p;
 extern const char * const ecma_error_unknown_export_p;
@@ -63,6 +67,7 @@ extern const char * const ecma_error_arraybuffer_is_detached;
 extern const char * const ecma_error_cannot_convert_to_object;
 extern const char * const ecma_error_class_is_non_configurable;
 extern const char * const ecma_error_argument_is_not_an_object;
+extern const char * const ecma_error_argument_is_not_a_proxy;
 extern const char * const ecma_error_target_is_not_a_constructor;
 extern const char * const ecma_error_argument_is_not_an_regexp;
 extern const char * const ecma_error_invalid_array_length;

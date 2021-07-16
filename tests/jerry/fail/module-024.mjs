@@ -13,5 +13,6 @@
  * limitations under the License.
  */
 
-/* Star exports can't have an export name. */
-export * as star from "../es.next/module-export-01.mjs"
+export function ns() {}
+/* Duplicated export. */
+export * as ns from "../es.next/module-export-fail-test.mjs"

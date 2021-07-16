@@ -238,7 +238,7 @@ ecma_gc_mark_properties (ecma_object_t *object_p, /**< object */
 
   jmem_cpointer_t prop_iter_cp = object_p->u1.property_list_cp;
 
-#if JERRY_PROPRETY_HASHMAP
+#if JERRY_PROPERTY_HASHMAP
   if (prop_iter_cp != JMEM_CP_NULL)
   {
     ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, prop_iter_cp);
@@ -247,7 +247,7 @@ ecma_gc_mark_properties (ecma_object_t *object_p, /**< object */
       prop_iter_cp = prop_iter_p->next_property_cp;
     }
   }
-#endif /* JERRY_PROPRETY_HASHMAP */
+#endif /* JERRY_PROPERTY_HASHMAP */
 
   while (prop_iter_cp != JMEM_CP_NULL)
   {
@@ -327,6 +327,46 @@ ecma_gc_mark_properties (ecma_object_t *object_p, /**< object */
           break;
         }
 #endif /* JERRY_ESNEXT */
+#if JERRY_BUILTIN_CONTAINER
+        case LIT_INTERNAL_MAGIC_STRING_WEAK_REFS:
+        {
+          ecma_value_t key_arg = ecma_make_object_value (object_p);
+          ecma_collection_t *refs_p;
+
+          refs_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_collection_t, property_pair_p->values[index].value);
+
+          for (uint32_t j = 0; j < refs_p->item_count; j++)
+          {
+            const ecma_value_t reference_value = refs_p->buffer_p[j];
+
+            if (ecma_is_value_empty (reference_value))
+            {
+              continue;
+            }
+
+            ecma_object_t *reference_object_p = ecma_get_object_from_value (reference_value);
+
+            JERRY_ASSERT (ecma_get_object_type (reference_object_p) == ECMA_OBJECT_TYPE_CLASS);
+
+            ecma_extended_object_t *map_object_p = (ecma_extended_object_t *) reference_object_p;
+
+            if (map_object_p->u.cls.type != ECMA_OBJECT_CLASS_CONTAINER
+                || map_object_p->u.cls.u2.container_id != LIT_MAGIC_STRING_WEAKMAP_UL
+                || !ecma_gc_is_object_visited (reference_object_p))
+            {
+              continue;
+            }
+
+            ecma_value_t value = ecma_op_container_find_weak_value (reference_object_p, key_arg);
+
+            if (ecma_is_value_object (value))
+            {
+              ecma_gc_set_object_visited (ecma_get_object_from_value (value));
+            }
+          }
+          break;
+        }
+#endif /* JERRY_BUILTIN_CONTAINER */
         case LIT_INTERNAL_MAGIC_STRING_NATIVE_POINTER_WITH_REFERENCES:
         {
           jerry_value_t value = property_pair_p->values[index].value;
@@ -465,7 +505,7 @@ ecma_gc_mark_promise_object (ecma_extended_object_t *ext_object_p) /**< extended
 
 #endif /* JERRY_BUILTIN_PROMISE */
 
-#if JERRY_BUILTIN_MAP
+#if JERRY_BUILTIN_CONTAINER
 /**
  * Mark objects referenced by Map built-in.
  */
@@ -500,9 +540,7 @@ ecma_gc_mark_map_object (ecma_object_t *object_p) /**< object */
     }
   }
 } /* ecma_gc_mark_map_object */
-#endif /* JERRY_BUILTIN_MAP */
 
-#if JERRY_BUILTIN_WEAKMAP
 /**
  * Mark objects referenced by WeakMap built-in.
  */
@@ -526,15 +564,16 @@ ecma_gc_mark_weakmap_object (ecma_object_t *object_p) /**< object */
       continue;
     }
 
-    if (ecma_is_value_object (entry_p->value))
+    JERRY_ASSERT (ecma_is_value_object (entry_p->key));
+
+    if (ecma_is_value_object (entry_p->value)
+        && ecma_gc_is_object_visited (ecma_get_object_from_value (entry_p->key)))
     {
       ecma_gc_set_object_visited (ecma_get_object_from_value (entry_p->value));
     }
   }
 } /* ecma_gc_mark_weakmap_object */
-#endif /* JERRY_BUILTIN_WEAKMAP */
 
-#if JERRY_BUILTIN_SET
 /**
  * Mark objects referenced by Set built-in.
  */
@@ -564,7 +603,7 @@ ecma_gc_mark_set_object (ecma_object_t *object_p) /**< object */
     }
   }
 } /* ecma_gc_mark_set_object */
-#endif /* JERRY_BUILTIN_SET */
+#endif /* JERRY_BUILTIN_CONTAINER */
 
 #if JERRY_ESNEXT
 /**
@@ -597,6 +636,7 @@ ecma_gc_mark_executable_object (ecma_object_t *object_p) /**< object */
   }
 
   ecma_gc_set_object_visited (executable_object_p->frame_ctx.lex_env_p);
+  ecma_gc_set_object_visited (executable_object_p->shared.function_object_p);
 
   if (!ECMA_EXECUTABLE_OBJECT_IS_SUSPENDED (executable_object_p))
   {
@@ -895,30 +935,22 @@ ecma_gc_mark (ecma_object_t *object_p) /**< object to mark from */
 #if JERRY_BUILTIN_CONTAINER
           case ECMA_OBJECT_CLASS_CONTAINER:
           {
-#if JERRY_BUILTIN_MAP
             if (ext_object_p->u.cls.u2.container_id == LIT_MAGIC_STRING_MAP_UL)
             {
               ecma_gc_mark_map_object (object_p);
               break;
             }
-#endif /* JERRY_BUILTIN_MAP */
-#if JERRY_BUILTIN_WEAKMAP
             if (ext_object_p->u.cls.u2.container_id == LIT_MAGIC_STRING_WEAKMAP_UL)
             {
               ecma_gc_mark_weakmap_object (object_p);
               break;
             }
-#endif /* JERRY_BUILTIN_WEAKMAP */
-#if JERRY_BUILTIN_SET
             if (ext_object_p->u.cls.u2.container_id == LIT_MAGIC_STRING_SET_UL)
             {
               ecma_gc_mark_set_object (object_p);
               break;
             }
-#endif /* JERRY_BUILTIN_SET */
-#if JERRY_BUILTIN_WEAKSET
             JERRY_ASSERT (ext_object_p->u.cls.u2.container_id == LIT_MAGIC_STRING_WEAKSET_UL);
-#endif /* JERRY_BUILTIN_WEAKSET */
             break;
           }
 #endif /* JERRY_BUILTIN_CONTAINER */
@@ -1523,7 +1555,7 @@ ecma_gc_free_property (ecma_object_t *object_p, /**< object */
       break;
     }
 #endif /* JERRY_ESNEXT */
-#if JERRY_BUILTIN_WEAKMAP || JERRY_BUILTIN_WEAKSET || JERRY_BUILTIN_WEAKREF
+#if JERRY_BUILTIN_WEAKREF || JERRY_BUILTIN_CONTAINER
     case LIT_INTERNAL_MAGIC_STRING_WEAK_REFS:
     {
       ecma_collection_t *refs_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_collection_t, value);
@@ -1548,7 +1580,7 @@ ecma_gc_free_property (ecma_object_t *object_p, /**< object */
       ecma_collection_destroy (refs_p);
       break;
     }
-#endif /* JERRY_BUILTIN_WEAKMAP || JERRY_BUILTIN_WEAKSET || JERRY_BUILTIN_WEAKREF */
+#endif /* JERRY_BUILTIN_CONTAINER */
     default:
     {
       JERRY_ASSERT (name_cp == LIT_INTERNAL_MAGIC_STRING_NATIVE_POINTER
@@ -1568,7 +1600,7 @@ ecma_gc_free_properties (ecma_object_t *object_p, /**< object */
 {
   jmem_cpointer_t prop_iter_cp = object_p->u1.property_list_cp;
 
-#if JERRY_PROPRETY_HASHMAP
+#if JERRY_PROPERTY_HASHMAP
   if (prop_iter_cp != JMEM_CP_NULL)
   {
     ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
@@ -1579,7 +1611,7 @@ ecma_gc_free_properties (ecma_object_t *object_p, /**< object */
       prop_iter_cp = object_p->u1.property_list_cp;
     }
   }
-#endif /* JERRY_PROPRETY_HASHMAP */
+#endif /* JERRY_PROPERTY_HASHMAP */
 
   while (prop_iter_cp != JMEM_CP_NULL)
   {
@@ -2172,13 +2204,13 @@ ecma_free_unused_memory (jmem_pressure_t pressure) /**< current pressure */
 
   if (JERRY_LIKELY (pressure == JMEM_PRESSURE_LOW))
   {
-#if JERRY_PROPRETY_HASHMAP
+#if JERRY_PROPERTY_HASHMAP
     if (JERRY_CONTEXT (ecma_prop_hashmap_alloc_state) > ECMA_PROP_HASHMAP_ALLOC_ON)
     {
       --JERRY_CONTEXT (ecma_prop_hashmap_alloc_state);
     }
     JERRY_CONTEXT (status_flags) &= (uint32_t) ~ECMA_STATUS_HIGH_PRESSURE_GC;
-#endif /* JERRY_PROPRETY_HASHMAP */
+#endif /* JERRY_PROPERTY_HASHMAP */
     /*
      * If there is enough newly allocated objects since last GC, probably it is worthwhile to start GC now.
      * Otherwise, probability to free sufficient space is considered to be low.
@@ -2195,7 +2227,7 @@ ecma_free_unused_memory (jmem_pressure_t pressure) /**< current pressure */
   else if (pressure == JMEM_PRESSURE_HIGH)
   {
     /* Freeing as much memory as we currently can */
-#if JERRY_PROPRETY_HASHMAP
+#if JERRY_PROPERTY_HASHMAP
     if (JERRY_CONTEXT (status_flags) & ECMA_STATUS_HIGH_PRESSURE_GC)
     {
       JERRY_CONTEXT (ecma_prop_hashmap_alloc_state) = ECMA_PROP_HASHMAP_ALLOC_MAX;
@@ -2205,11 +2237,11 @@ ecma_free_unused_memory (jmem_pressure_t pressure) /**< current pressure */
       ++JERRY_CONTEXT (ecma_prop_hashmap_alloc_state);
       JERRY_CONTEXT (status_flags) |= ECMA_STATUS_HIGH_PRESSURE_GC;
     }
-#endif /* JERRY_PROPRETY_HASHMAP */
+#endif /* JERRY_PROPERTY_HASHMAP */
 
     ecma_gc_run ();
 
-#if JERRY_PROPRETY_HASHMAP
+#if JERRY_PROPERTY_HASHMAP
     /* Free hashmaps of remaining objects. */
     jmem_cpointer_t obj_iter_cp = JERRY_CONTEXT (ecma_gc_objects_cp);
 
@@ -2243,7 +2275,7 @@ ecma_free_unused_memory (jmem_pressure_t pressure) /**< current pressure */
 
       obj_iter_cp = obj_iter_p->gc_next_cp;
     }
-#endif /* JERRY_PROPRETY_HASHMAP */
+#endif /* JERRY_PROPERTY_HASHMAP */
 
     jmem_pools_collect_empty ();
     return;

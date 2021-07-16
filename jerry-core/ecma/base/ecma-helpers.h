@@ -295,10 +295,10 @@ ecma_string_t *ecma_new_symbol_from_descriptor_string (ecma_value_t string_desc)
 bool ecma_prop_name_is_symbol (ecma_string_t *string_p);
 ecma_length_t ecma_op_advance_string_index (ecma_string_t *str_p, ecma_length_t index_num, bool is_unicode);
 #endif /* JERRY_ESNEXT */
-#if JERRY_BUILTIN_MAP || JERRY_BUILTIN_SET
+#if JERRY_BUILTIN_CONTAINER
 ecma_string_t *ecma_new_map_key_string (ecma_value_t value);
 bool ecma_prop_name_is_map_key (ecma_string_t *string_p);
-#endif /* JERRY_BUILTIN_MAP || JERRY_BUILTIN_SET */
+#endif /* JERRY_BUILTIN_CONTAINER */
 ecma_string_t *ecma_new_ecma_string_from_utf8 (const lit_utf8_byte_t *string_p, lit_utf8_size_t string_size);
 ecma_string_t *ecma_new_ecma_string_from_utf8_converted_to_cesu8 (const lit_utf8_byte_t *string_p,
                                                                   lit_utf8_size_t string_size);
@@ -482,8 +482,7 @@ ecma_property_value_t *
 ecma_create_named_accessor_property (ecma_object_t *object_p, ecma_string_t *name_p, ecma_object_t *get_p,
                                      ecma_object_t *set_p, uint8_t prop_attributes, ecma_property_t **out_prop_p);
 #if JERRY_MODULE_SYSTEM
-void ecma_create_named_reference_property (ecma_object_t *object_p, ecma_string_t *name_p,
-                                           ecma_property_t *property_p);
+void ecma_create_named_reference_property (ecma_object_t *object_p, ecma_string_t *name_p, ecma_value_t reference);
 #endif /* JERRY_MODULE_SYSTEM */
 ecma_property_t *
 ecma_find_named_property (ecma_object_t *obj_p, ecma_string_t *name_p);
@@ -502,8 +501,8 @@ void ecma_set_named_accessor_property_getter (ecma_object_t *object_p, ecma_prop
 void ecma_set_named_accessor_property_setter (ecma_object_t *object_p, ecma_property_value_t *prop_value_p,
                                               ecma_object_t *setter_p);
 #if JERRY_MODULE_SYSTEM
-ecma_property_value_t *
-ecma_get_property_value_from_named_reference (ecma_property_value_t *reference_p);
+ecma_value_t ecma_property_to_reference (ecma_property_t *property_p);
+ecma_property_value_t *ecma_get_property_value_from_named_reference (ecma_property_value_t *reference_p);
 #endif /* JERRY_MODULE_SYSTEM */
 bool ecma_is_property_writable (ecma_property_t property);
 void ecma_set_property_writable_attr (ecma_property_t *property_p, bool is_writable);
@@ -539,6 +538,9 @@ ecma_value_t *ecma_compiled_code_resolve_function_name (const ecma_compiled_code
 uint32_t ecma_compiled_code_resolve_extended_info (const ecma_compiled_code_t *bytecode_header_p);
 ecma_collection_t *ecma_compiled_code_get_tagged_template_collection (const ecma_compiled_code_t *bytecode_header_p);
 #endif /* JERRY_ESNEXT */
+#if JERRY_LINE_INFO
+uint8_t *ecma_compiled_code_get_line_info (const ecma_compiled_code_t *bytecode_header_p);
+#endif /* JERRY_LINE_INFO */
 ecma_value_t ecma_get_resource_name (const ecma_compiled_code_t *bytecode_p);
 #if (JERRY_STACK_LIMIT != 0)
 uintptr_t ecma_get_current_stack_usage (void);

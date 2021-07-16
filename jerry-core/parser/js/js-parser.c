@@ -649,6 +649,10 @@ parser_post_processing (parser_context_t *context_p) /**< context */
   }
 #endif /* JERRY_ESNEXT */
 
+#if JERRY_LINE_INFO
+  JERRY_ASSERT (context_p->line_info.first_page_p != NULL);
+#endif /* JERRY_LINE_INFO */
+
   JERRY_ASSERT (context_p->stack_depth == 0);
 #ifndef JERRY_NDEBUG
   JERRY_ASSERT (context_p->context_stack_depth == 0);
@@ -730,23 +734,6 @@ parser_post_processing (parser_context_t *context_p) /**< context */
         flags = cbc_ext_flags[ext_opcode];
         PARSER_NEXT_BYTE (page_p, offset);
         length++;
-
-#if JERRY_LINE_INFO
-        if (ext_opcode == CBC_EXT_LINE)
-        {
-          uint8_t last_byte = 0;
-
-          do
-          {
-            last_byte = page_p->bytes[offset];
-            PARSER_NEXT_BYTE (page_p, offset);
-            length++;
-          }
-          while (last_byte & CBC_HIGHEST_BIT_MASK);
-
-          continue;
-        }
-#endif /* JERRY_LINE_INFO */
         break;
       }
       case CBC_POST_DECR:
@@ -941,6 +928,10 @@ parser_post_processing (parser_context_t *context_p) /**< context */
   }
 #endif /* JERRY_ESNEXT */
 
+#if JERRY_LINE_INFO
+  total_size += sizeof (ecma_value_t);
+#endif /* JERRY_LINE_INFO */
+
   total_size = JERRY_ALIGNUP (total_size, JMEM_ALIGNMENT);
 
   compiled_code_p = (ecma_compiled_code_t *) parser_malloc (context_p, total_size);
@@ -1087,6 +1078,10 @@ parser_post_processing (parser_context_t *context_p) /**< context */
 
   compiled_code_p->status_flags |= function_type;
 
+#if JERRY_LINE_INFO
+  compiled_code_p->status_flags |= CBC_CODE_FLAGS_HAS_LINE_INFO;
+#endif /* JERRY_LINE_INFO */
+
   literal_pool_p = ((ecma_value_t *) byte_code_p) - context_p->register_count;
   byte_code_p += literal_length;
   dst_p = byte_code_p;
@@ -1157,25 +1152,6 @@ parser_post_processing (parser_context_t *context_p) /**< context */
       opcode_p++;
       real_offset++;
       PARSER_NEXT_BYTE_UPDATE (page_p, offset, real_offset);
-
-#if JERRY_LINE_INFO
-      if (ext_opcode == CBC_EXT_LINE)
-      {
-        uint8_t last_byte = 0;
-
-        do
-        {
-          last_byte = page_p->bytes[offset];
-          *dst_p++ = last_byte;
-
-          real_offset++;
-          PARSER_NEXT_BYTE_UPDATE (page_p, offset, real_offset);
-        }
-        while (last_byte & CBC_HIGHEST_BIT_MASK);
-
-        continue;
-      }
-#endif /* JERRY_LINE_INFO */
     }
 
     /* Only literal and call arguments can be combined. */
@@ -1291,6 +1267,10 @@ parser_post_processing (parser_context_t *context_p) /**< context */
   }
   JERRY_ASSERT (dst_p == byte_code_p + length);
 
+#if JERRY_LINE_INFO
+  uint8_t *line_info_p = parser_line_info_generate (context_p);
+#endif /* JERRY_LINE_INFO */
+
   parse_update_branches (context_p, byte_code_p);
 
   parser_cbc_stream_free (&context_p->byte_code);
@@ -1371,8 +1351,15 @@ parser_post_processing (parser_context_t *context_p) /**< context */
   {
     compiled_code_p->status_flags |= CBC_CODE_FLAGS_HAS_TAGGED_LITERALS;
     base_p[-1] = (ecma_value_t) context_p->tagged_template_literal_cp;
+#if JERRY_LINE_INFO
+    --base_p;
+#endif /* JERRY_LINE_INFO */
   }
 #endif /* JERRY_ESNEXT */
+
+#if JERRY_LINE_INFO
+  ECMA_SET_INTERNAL_VALUE_POINTER (base_p[-1], line_info_p);
+#endif /* JERRY_LINE_INFO */
 
 #if JERRY_PARSER_DUMP_BYTE_CODE
   if (context_p->is_show_opcodes)
@@ -1795,7 +1782,7 @@ parser_parse_source (const uint8_t *arg_list_p, /**< function argument list */
                      const uint8_t *source_p, /**< valid UTF-8 source code */
                      size_t source_size, /**< size of the source code */
                      uint32_t parse_opts, /**< ecma_parse_opts_t option bits */
-                     const ecma_parse_options_t *options_p) /**< additional configuration options */
+                     const jerry_parse_options_t *options_p) /**< additional configuration options */
 {
   parser_context_t context;
   ecma_compiled_code_t *compiled_code_p;
@@ -1895,6 +1882,14 @@ parser_parse_source (const uint8_t *arg_list_p, /**< function argument list */
 #ifndef JERRY_NDEBUG
   context.context_stack_depth = 0;
 #endif /* !JERRY_NDEBUG */
+
+#if JERRY_LINE_INFO
+  context.line_info.first_page_p = NULL;
+  context.line_info.last_page_p = NULL;
+  context.line_info.byte_code_position = 0;
+  context.line_info.line = 1;
+  context.line_info.column = 1;
+#endif /* JERRY_LINE_INFO */
 
 #if JERRY_PARSER_DUMP_BYTE_CODE
   context.is_show_opcodes = (JERRY_CONTEXT (jerry_init_flags) & JERRY_INIT_SHOW_OPCODES);
@@ -2074,6 +2069,10 @@ parser_parse_source (const uint8_t *arg_list_p, /**< function argument list */
     parser_free (context.scope_stack_p, context.scope_stack_size * sizeof (parser_scope_stack_t));
   }
 
+#if JERRY_LINE_INFO
+  parser_line_info_free (&context.line_info);
+#endif /* JERRY_LINE_INFO */
+
 #if JERRY_PARSER_DUMP_BYTE_CODE
   if (context.is_show_opcodes)
   {
@@ -2206,6 +2205,10 @@ parser_save_context (parser_context_t *context_p, /**< context */
   saved_context_p->context_stack_depth = context_p->context_stack_depth;
 #endif /* !JERRY_NDEBUG */
 
+#if JERRY_LINE_INFO
+  saved_context_p->line_info = context_p->line_info;
+#endif /* JERRY_LINE_INFO */
+
   /* Reset private part of the context. */
 
   context_p->status_flags &= PARSER_IS_STRICT;
@@ -2236,6 +2239,14 @@ parser_save_context (parser_context_t *context_p, /**< context */
 #ifndef JERRY_NDEBUG
   context_p->context_stack_depth = 0;
 #endif /* !JERRY_NDEBUG */
+
+#if JERRY_LINE_INFO
+  context_p->line_info.first_page_p = NULL;
+  context_p->line_info.last_page_p = NULL;
+  context_p->line_info.byte_code_position = 0;
+  context_p->line_info.line = 1;
+  context_p->line_info.column = 1;
+#endif /* JERRY_LINE_INFO */
 } /* parser_save_context */
 
 /**
@@ -2251,6 +2262,10 @@ parser_restore_context (parser_context_t *context_p, /**< context */
   {
     parser_free (context_p->scope_stack_p, context_p->scope_stack_size * sizeof (parser_scope_stack_t));
   }
+
+#if JERRY_LINE_INFO
+  parser_line_info_free (&context_p->line_info);
+#endif /* JERRY_LINE_INFO */
 
   /* Restore private part of the context. */
 
@@ -2284,6 +2299,10 @@ parser_restore_context (parser_context_t *context_p, /**< context */
 #ifndef JERRY_NDEBUG
   context_p->context_stack_depth = saved_context_p->context_stack_depth;
 #endif /* !JERRY_NDEBUG */
+
+#if JERRY_LINE_INFO
+  context_p->line_info = saved_context_p->line_info;
+#endif /* JERRY_LINE_INFO */
 } /* parser_restore_context */
 
 /**
@@ -2462,6 +2481,10 @@ parser_parse_arrow_function (parser_context_t *context_p, /**< context */
       parser_raise_error (context_p, PARSER_ERR_NON_STRICT_ARG_DEFINITION);
     }
 
+#if JERRY_LINE_INFO
+    parser_line_info_append (context_p, context_p->token.line, context_p->token.column);
+#endif /* JERRY_LINE_INFO */
+
     parser_parse_expression (context_p, PARSE_EXPR_NO_COMMA);
 
     if (context_p->last_cbc_opcode == CBC_PUSH_LITERAL)
@@ -2580,6 +2603,11 @@ parser_parse_class_fields (parser_context_t *context_p) /**< context */
 
       context_p->source_end_p = range.source_end_p;
       lexer_next_token (context_p);
+
+#if JERRY_LINE_INFO
+      parser_line_info_append (context_p, context_p->token.line, context_p->token.column);
+#endif /* JERRY_LINE_INFO */
+
       parser_parse_expression (context_p, PARSE_EXPR_NO_COMMA);
 
       if (context_p->token.type != LEXER_EOS)
@@ -2630,6 +2658,13 @@ parser_parse_class_fields (parser_context_t *context_p) /**< context */
   parser_flush_cbc (context_p);
   context_p->source_end_p = source_end_p;
   scanner_set_location (context_p, &end_location);
+
+#if JERRY_LINE_INFO
+  if (context_p->line_info.first_page_p == NULL)
+  {
+    parser_line_info_append (context_p, context_p->token.line, context_p->token.column);
+  }
+#endif /* JERRY_LINE_INFO */
 
   compiled_code_p = parser_post_processing (context_p);
 
@@ -2815,6 +2850,10 @@ parser_raise_error (parser_context_t *context_p, /**< context */
     }
 #endif /* JERRY_ESNEXT  */
 
+#if JERRY_LINE_INFO
+    parser_line_info_free (&saved_context_p->line_info);
+#endif /* JERRY_LINE_INFO */
+
     saved_context_p = saved_context_p->prev_context_p;
   }
 
@@ -2851,7 +2890,7 @@ parser_parse_script (const uint8_t *arg_list_p, /**< function argument list */
                      const uint8_t *source_p, /**< source code */
                      size_t source_size, /**< size of the source code */
                      uint32_t parse_opts, /**< ecma_parse_opts_t option bits */
-                     const ecma_parse_options_t *options_p) /**< additional configuration options */
+                     const jerry_parse_options_t *options_p) /**< additional configuration options */
 {
 #if JERRY_PARSER
 

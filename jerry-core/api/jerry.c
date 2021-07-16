@@ -32,8 +32,9 @@
 #include "ecma-gc.h"
 #include "ecma-helpers.h"
 #include "ecma-init-finalize.h"
+#include "ecma-iterator-object.h"
 #include "ecma-lex-env.h"
-#include "lit-char-helpers.h"
+#include "ecma-line-info.h"
 #include "ecma-literal-storage.h"
 #include "ecma-objects.h"
 #include "ecma-objects-general.h"
@@ -42,25 +43,17 @@
 #include "ecma-proxy-object.h"
 #include "ecma-symbol-object.h"
 #include "ecma-typedarray-object.h"
-#include "opcodes.h"
 #include "jcontext.h"
 #include "jerryscript.h"
 #include "jerryscript-debugger-transport.h"
 #include "jmem.h"
 #include "js-parser.h"
+#include "lit-char-helpers.h"
+#include "opcodes.h"
 #include "re-compiler.h"
 
 JERRY_STATIC_ASSERT (sizeof (jerry_value_t) == sizeof (ecma_value_t),
                      size_of_jerry_value_t_must_be_equal_to_size_of_ecma_value_t);
-
-JERRY_STATIC_ASSERT ((int) ECMA_PARSE_STRICT_MODE == (int) JERRY_PARSE_STRICT_MODE
-                     && (int) ECMA_PARSE_MODULE == (int) JERRY_PARSE_MODULE
-                     && (int) ECMA_PARSE_HAS_RESOURCE == (int) JERRY_PARSE_HAS_RESOURCE
-                     && (int) ECMA_PARSE_HAS_START == (int) JERRY_PARSE_HAS_START,
-                     ecma_parse_config_options_t_must_be_equal_to_jerry_parse_config_options_t);
-
-JERRY_STATIC_ASSERT (sizeof (jerry_parse_options_t) == sizeof (ecma_parse_options_t),
-                     ecma_parse_options_t_and_jerry_parse_options_t_must_be_the_same);
 
 #if JERRY_BUILTIN_REGEXP
 JERRY_STATIC_ASSERT ((int) RE_FLAG_GLOBAL == (int) JERRY_REGEXP_FLAG_GLOBAL
@@ -438,12 +431,8 @@ jerry_parse (const jerry_char_t *source_p, /**< script source */
 #endif /* JERRY_MODULE_SYSTEM */
   }
 
-  ecma_compiled_code_t *bytecode_data_p = parser_parse_script (NULL,
-                                                               0,
-                                                               source_p,
-                                                               source_size,
-                                                               parse_opts,
-                                                               (const ecma_parse_options_t *) options_p);
+  ecma_compiled_code_t *bytecode_data_p;
+  bytecode_data_p = parser_parse_script (NULL, 0, source_p, source_size, parse_opts, options_p);
 
   if (JERRY_UNLIKELY (bytecode_data_p == NULL))
   {
@@ -539,12 +528,8 @@ jerry_parse_function (const jerry_char_t *arg_list_p, /**< script source */
     arg_list_p = (const jerry_char_t *) "";
   }
 
-  ecma_compiled_code_t *bytecode_p = parser_parse_script (arg_list_p,
-                                                          arg_list_size,
-                                                          source_p,
-                                                          source_size,
-                                                          parse_opts,
-                                                          (const ecma_parse_options_t *) options_p);
+  ecma_compiled_code_t *bytecode_p;
+  bytecode_p = parser_parse_script (arg_list_p, arg_list_size, source_p, source_size, parse_opts, options_p);
 
   if (JERRY_UNLIKELY (bytecode_p == NULL))
   {
@@ -864,16 +849,13 @@ jerry_module_get_namespace (const jerry_value_t module_val) /**< module */
     return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_not_module_p)));
   }
 
-  if (module_p->namespace_object_p == NULL)
+  if (module_p->header.u.cls.u1.module_state < JERRY_MODULE_STATE_LINKED
+      || module_p->header.u.cls.u1.module_state > JERRY_MODULE_STATE_EVALUATED)
   {
-    if (module_p->header.u.cls.u1.module_state < JERRY_MODULE_STATE_LINKED
-        || module_p->header.u.cls.u1.module_state > JERRY_MODULE_STATE_EVALUATED)
-    {
-      return jerry_throw (ecma_raise_range_error (ECMA_ERR_MSG ("Namespace object cannot be created")));
-    }
-
-    ecma_module_create_namespace_object (module_p);
+    return jerry_throw (ecma_raise_range_error (ECMA_ERR_MSG ("Namespace object is not available")));
   }
+
+  JERRY_ASSERT (module_p->namespace_object_p != NULL);
 
   ecma_ref_object (module_p->namespace_object_p);
   return ecma_make_object_value (module_p->namespace_object_p);
@@ -1186,6 +1168,34 @@ jerry_value_is_boolean (const jerry_value_t value) /**< api value */
 } /* jerry_value_is_boolean */
 
 /**
+ * Check if the specified value is true.
+ *
+ * @return true  - if the specified value is true
+ *         false - otherwise
+ */
+bool
+jerry_value_is_true (const jerry_value_t value) /**< api value */
+{
+  jerry_assert_api_available ();
+
+  return ecma_is_value_true (value);
+} /* jerry_value_is_true */
+
+/**
+ * Check if the specified value is false.
+ *
+ * @return true  - if the specified value is false
+ *         false - otherwise
+ */
+bool
+jerry_value_is_false (const jerry_value_t value) /**< api value */
+{
+  jerry_assert_api_available ();
+
+  return ecma_is_value_false (value);
+} /* jerry_value_is_false */
+
+/**
  * Check if the specified value is a constructor function object value.
  *
  * @return true - if the specified value is a function value that implements [[Construct]],
@@ -1485,7 +1495,7 @@ static const uint8_t jerry_class_object_type[] =
   JERRY_OBJECT_TYPE_TYPEDARRAY, /**< type of ECMA_OBJECT_CLASS_TYPEDARRAY */
 #endif /* JERRY_BUILTIN_TYPEDARRAY */
 #if JERRY_MODULE_SYSTEM
-  JERRY_OBJECT_TYPE_GENERIC, /**< type of ECMA_OBJECT_CLASS_MODULE_NAMESPACE */
+  JERRY_OBJECT_TYPE_MODULE_NAMESPACE, /**< type of ECMA_OBJECT_CLASS_MODULE_NAMESPACE */
 #endif
 
   /* These objects are marked by Garbage Collector. */
@@ -1496,18 +1506,18 @@ static const uint8_t jerry_class_object_type[] =
   JERRY_OBJECT_TYPE_ITERATOR, /**< type of ECMA_OBJECT_CLASS_SET_ITERATOR */
   JERRY_OBJECT_TYPE_ITERATOR, /**< type of ECMA_OBJECT_CLASS_MAP_ITERATOR */
 #if JERRY_BUILTIN_REGEXP
-  JERRY_OBJECT_TYPE_GENERIC, /**< type of ECMA_OBJECT_CLASS_REGEXP_STRING_ITERATOR */
+  JERRY_OBJECT_TYPE_ITERATOR, /**< type of ECMA_OBJECT_CLASS_REGEXP_STRING_ITERATOR */
 #endif /* JERRY_BUILTIN_REGEXP */
 #endif /* JERRY_ESNEXT */
 #if JERRY_MODULE_SYSTEM
   JERRY_OBJECT_TYPE_MODULE, /**< type of ECMA_OBJECT_CLASS_MODULE */
 #endif
 #if JERRY_BUILTIN_PROMISE
-  JERRY_OBJECT_TYPE_GENERIC, /**< type of ECMA_OBJECT_CLASS_PROMISE */
+  JERRY_OBJECT_TYPE_PROMISE, /**< type of ECMA_OBJECT_CLASS_PROMISE */
   JERRY_OBJECT_TYPE_GENERIC, /**< type of ECMA_OBJECT_CLASS_PROMISE_CAPABILITY */
 #endif /* JERRY_BUILTIN_PROMISE */
 #if JERRY_BUILTIN_DATAVIEW
-  JERRY_OBJECT_TYPE_GENERIC, /**< type of ECMA_OBJECT_CLASS_DATAVIEW */
+  JERRY_OBJECT_TYPE_DATAVIEW, /**< type of ECMA_OBJECT_CLASS_DATAVIEW */
 #endif /* JERRY_BUILTIN_DATAVIEW */
 #if JERRY_BUILTIN_CONTAINER
   JERRY_OBJECT_TYPE_CONTAINER, /**< type of ECMA_OBJECT_CLASS_CONTAINER */
@@ -1516,7 +1526,7 @@ static const uint8_t jerry_class_object_type[] =
   /* Normal objects. */
   JERRY_OBJECT_TYPE_BOOLEAN, /**< type of ECMA_OBJECT_CLASS_BOOLEAN */
   JERRY_OBJECT_TYPE_NUMBER, /**< type of ECMA_OBJECT_CLASS_NUMBER */
-  JERRY_OBJECT_TYPE_GENERIC, /**< type of ECMA_OBJECT_CLASS_ERROR */
+  JERRY_OBJECT_TYPE_ERROR, /**< type of ECMA_OBJECT_CLASS_ERROR */
   JERRY_OBJECT_TYPE_GENERIC, /**< type of ECMA_OBJECT_CLASS_INTERNAL_OBJECT */
 #if JERRY_PARSER
   JERRY_OBJECT_TYPE_SCRIPT, /**< type of ECMA_OBJECT_CLASS_SCRIPT */
@@ -1532,7 +1542,7 @@ static const uint8_t jerry_class_object_type[] =
   JERRY_OBJECT_TYPE_ITERATOR, /**< type of ECMA_OBJECT_CLASS_STRING_ITERATOR */
 #endif /* JERRY_ESNEXT */
 #if JERRY_BUILTIN_TYPEDARRAY
-  JERRY_OBJECT_TYPE_GENERIC, /**< type of ECMA_OBJECT_CLASS_ARRAY_BUFFER */
+  JERRY_OBJECT_TYPE_ARRAYBUFFER, /**< type of ECMA_OBJECT_CLASS_ARRAY_BUFFER */
 #endif /* JERRY_BUILTIN_TYPEDARRAY */
 #if JERRY_BUILTIN_BIGINT
   JERRY_OBJECT_TYPE_BIGINT, /**< type of ECMA_OBJECT_CLASS_BIGINT */
@@ -1689,18 +1699,16 @@ jerry_iterator_get_type (const jerry_value_t value) /**< input value to check */
         {
           return JERRY_ITERATOR_TYPE_ARRAY;
         }
-#if JERRY_BUILTIN_SET
+#if JERRY_BUILTIN_CONTAINER
         case ECMA_OBJECT_CLASS_SET_ITERATOR:
         {
           return JERRY_ITERATOR_TYPE_SET;
         }
-#endif /* JERRY_BUILTIN_SET */
-#if JERRY_BUILTIN_MAP
         case ECMA_OBJECT_CLASS_MAP_ITERATOR:
         {
           return JERRY_ITERATOR_TYPE_MAP;
         }
-#endif /* JERRY_BUILTIN_MAP */
+#endif /* JERRY_BUILTIN_CONTAINER */
         case ECMA_OBJECT_CLASS_STRING_ITERATOR:
         {
           return JERRY_ITERATOR_TYPE_STRING;
@@ -1794,21 +1802,15 @@ jerry_is_feature_enabled (const jerry_feature_t feature) /**< feature to check *
 #if JERRY_BUILTIN_GLOBAL_THIS
           || feature == JERRY_FEATURE_GLOBAL_THIS
 #endif /* JERRY_BUILTIN_GLOBAL_THIS */
-#if JERRY_BUILTIN_MAP
+#if JERRY_BUILTIN_CONTAINER
           || feature == JERRY_FEATURE_MAP
-#endif /* JERRY_BUILTIN_MAP */
-#if JERRY_BUILTIN_SET
           || feature == JERRY_FEATURE_SET
-#endif /* JERRY_BUILTIN_SET */
-#if JERRY_BUILTIN_WEAKMAP
           || feature == JERRY_FEATURE_WEAKMAP
-#endif /* JERRY_BUILTIN_WEAKMAP */
+          || feature == JERRY_FEATURE_WEAKSET
+#endif /* JERRY_BUILTIN_CONTAINER */
 #if JERRY_BUILTIN_WEAKREF
           || feature == JERRY_FEATURE_WEAKREF
 #endif /* JERRY_BUILTIN_WEAKREF */
-#if JERRY_BUILTIN_WEAKSET
-          || feature == JERRY_FEATURE_WEAKSET
-#endif /* JERRY_BUILTIN_WEAKSET */
 #if JERRY_BUILTIN_BIGINT
           || feature == JERRY_FEATURE_BIGINT
 #endif /* JERRY_BUILTIN_BIGINT */
@@ -2036,19 +2038,6 @@ jerry_get_error_type (jerry_value_t value) /**< api value */
 
   return (jerry_error_t) error_type;
 } /* jerry_get_error_type */
-
-/**
- * Get boolean from the specified value.
- *
- * @return true or false.
- */
-bool
-jerry_get_boolean_value (const jerry_value_t value) /**< api value */
-{
-  jerry_assert_api_available ();
-
-  return ecma_is_value_true (value);
-} /* jerry_get_boolean_value */
 
 /**
  * Get number from the specified value as a double.
@@ -3680,9 +3669,11 @@ jerry_property_descriptor_from_ecma (const ecma_property_descriptor_t *prop_desc
 /**
  * Convert a jerry_property_descriptor_t to a ecma_property_descriptor_t
  *
- * if error occurs the property descriptor's value field is filled with ECMA_VALUE_ERROR
+ * Note:
+ *     if error occurs the property descriptor's value field
+ *     is set to ECMA_VALUE_ERROR, but no error is thrown
  *
- * @return  ecma_property_descriptor_t
+ * @return ecma_property_descriptor_t
  */
 static ecma_property_descriptor_t
 jerry_property_descriptor_to_ecma (const jerry_property_descriptor_t *prop_desc_p) /**< input property_descriptor */
@@ -3694,9 +3685,10 @@ jerry_property_descriptor_to_ecma (const jerry_property_descriptor_t *prop_desc_
   /* Copy data property info. */
   if (prop_desc_p->flags & JERRY_PROP_IS_VALUE_DEFINED)
   {
-    if (ecma_is_value_error_reference (prop_desc_p->value))
+    if (ecma_is_value_error_reference (prop_desc_p->value)
+        || (prop_desc_p->flags & (JERRY_PROP_IS_GET_DEFINED | JERRY_PROP_IS_SET_DEFINED)))
     {
-      prop_desc.value = ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p));
+      prop_desc.value = ECMA_VALUE_ERROR;
       return prop_desc;
     }
 
@@ -3710,7 +3702,7 @@ jerry_property_descriptor_to_ecma (const jerry_property_descriptor_t *prop_desc_
 
     if (ecma_is_value_error_reference (getter))
     {
-      prop_desc.value = ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p));
+      prop_desc.value = ECMA_VALUE_ERROR;
       return prop_desc;
     }
 
@@ -3720,7 +3712,7 @@ jerry_property_descriptor_to_ecma (const jerry_property_descriptor_t *prop_desc_
     }
     else if (!ecma_is_value_null (getter))
     {
-      prop_desc.value = ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p));
+      prop_desc.value = ECMA_VALUE_ERROR;
       return prop_desc;
     }
   }
@@ -3731,7 +3723,7 @@ jerry_property_descriptor_to_ecma (const jerry_property_descriptor_t *prop_desc_
 
     if (ecma_is_value_error_reference (setter))
     {
-      prop_desc.value = ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p));
+      prop_desc.value = ECMA_VALUE_ERROR;
       return prop_desc;
     }
 
@@ -3741,7 +3733,7 @@ jerry_property_descriptor_to_ecma (const jerry_property_descriptor_t *prop_desc_
     }
     else if (!ecma_is_value_null (setter))
     {
-      prop_desc.value = ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p));
+      prop_desc.value = ECMA_VALUE_ERROR;
       return prop_desc;
     }
   }
@@ -3754,7 +3746,7 @@ jerry_property_descriptor_to_ecma (const jerry_property_descriptor_t *prop_desc_
       || (prop_desc_p->flags & enumerable_mask) == JERRY_PROP_IS_ENUMERABLE
       || (prop_desc_p->flags & writable_mask) == JERRY_PROP_IS_WRITABLE)
   {
-    prop_desc.value = ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p));
+    prop_desc.value = ECMA_VALUE_ERROR;
     return prop_desc;
   }
 
@@ -3769,11 +3761,16 @@ jerry_property_descriptor_to_ecma (const jerry_property_descriptor_t *prop_desc_
  *         false value - otherwise
  */
 static jerry_value_t
-jerry_error_or_false (const jerry_value_t err_val, /**< error value */
-                      bool is_throw) /**< throw flag */
+jerry_type_error_or_false (const char *msg_p, /**< message */
+                           uint16_t flags) /**< property descriptor flags */
 {
-  return is_throw ? jerry_throw (err_val) : jerry_create_boolean (false);
-} /* jerry_error_or_false */
+  if (!(flags & JERRY_PROP_SHOULD_THROW))
+  {
+    return ECMA_VALUE_FALSE;
+  }
+
+  return jerry_throw (ecma_raise_type_error (msg_p));
+} /* jerry_type_error_or_false */
 
 /**
  * Define a property to the specified object with the given name.
@@ -3795,24 +3792,22 @@ jerry_define_own_property (const jerry_value_t obj_val, /**< object value */
   if (!ecma_is_value_object (obj_val)
       || !ecma_is_value_prop_name (prop_name_val))
   {
-    return jerry_error_or_false (ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p)),
-                                 prop_desc_p->flags & JERRY_PROP_SHOULD_THROW);
+    return jerry_type_error_or_false (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p), prop_desc_p->flags);
   }
 
   if (prop_desc_p->flags & (JERRY_PROP_IS_WRITABLE_DEFINED | JERRY_PROP_IS_VALUE_DEFINED)
       && prop_desc_p->flags & (JERRY_PROP_IS_GET_DEFINED | JERRY_PROP_IS_SET_DEFINED))
   {
-    return jerry_error_or_false (ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p)),
-                                 prop_desc_p->flags & JERRY_PROP_SHOULD_THROW);
+    return jerry_type_error_or_false (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p), prop_desc_p->flags);
   }
 
   ecma_property_descriptor_t prop_desc = jerry_property_descriptor_to_ecma (prop_desc_p);
 
   if (ECMA_IS_VALUE_ERROR (prop_desc.value))
   {
-    return jerry_error_or_false (prop_desc.value, prop_desc_p->flags & JERRY_PROP_SHOULD_THROW);
-
+    return jerry_type_error_or_false (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p), prop_desc_p->flags);
   }
+
   return jerry_return (ecma_op_object_define_own_property (ecma_get_object_from_value (obj_val),
                                                            ecma_get_prop_name_from_value (prop_name_val),
                                                            &prop_desc));
@@ -3824,7 +3819,7 @@ jerry_define_own_property (const jerry_value_t obj_val, /**< object value */
  * @return true - if success, the prop_desc_p fields contains the property info
  *         false - otherwise, the prop_desc_p is unchanged
  */
-bool
+jerry_value_t
 jerry_get_own_property_descriptor (const jerry_value_t  obj_val, /**< object value */
                                    const jerry_value_t prop_name_val, /**< property name (string value) */
                                    jerry_property_descriptor_t *prop_desc_p) /**< property descriptor */
@@ -3834,7 +3829,7 @@ jerry_get_own_property_descriptor (const jerry_value_t  obj_val, /**< object val
   if (!ecma_is_value_object (obj_val)
       || !ecma_is_value_prop_name (prop_name_val))
   {
-    return false;
+    return ECMA_VALUE_FALSE;
   }
 
   ecma_property_descriptor_t prop_desc;
@@ -3846,14 +3841,13 @@ jerry_get_own_property_descriptor (const jerry_value_t  obj_val, /**< object val
 #if JERRY_BUILTIN_PROXY
   if (ECMA_IS_VALUE_ERROR (status))
   {
-    // TODO: Due to Proxies the return value must be changed to jerry_value_t on next release
-    jcontext_release_exception ();
+    return jerry_throw (status);
   }
 #endif /* JERRY_BUILTIN_PROXY */
 
   if (!ecma_is_value_true (status))
   {
-    return false;
+    return ECMA_VALUE_FALSE;
   }
 
   /* The flags are always filled in the returned descriptor. */
@@ -3896,7 +3890,7 @@ jerry_get_own_property_descriptor (const jerry_value_t  obj_val, /**< object val
     }
   }
 
-  return true;
+  return ECMA_VALUE_TRUE;
 } /* jerry_get_own_property_descriptor */
 
 /**
@@ -4688,7 +4682,7 @@ jerry_from_property_descriptor (const jerry_property_descriptor_t *src_prop_desc
 
   if (ECMA_IS_VALUE_ERROR (prop_desc.value))
   {
-    return jerry_throw (prop_desc.value);
+    return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_wrong_args_msg_p)));
   }
 
   ecma_object_t *desc_obj_p = ecma_op_from_property_descriptor (&prop_desc);
@@ -5017,8 +5011,42 @@ jerry_get_proxy_target (jerry_value_t proxy_value) /**< proxy value */
   JERRY_UNUSED (proxy_value);
 #endif /* JERRY_BUILTIN_PROXY */
 
-  return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG ("Passed value is not a proxy object")));
+  return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_argument_is_not_a_proxy)));
 } /* jerry_get_proxy_target */
+
+/**
+ * Get the handler object of a Proxy object
+ *
+ * @return type error - if proxy_value is not a Proxy object
+ *         handler object - otherwise
+ */
+jerry_value_t
+jerry_get_proxy_handler (jerry_value_t proxy_value) /**< proxy value */
+{
+  jerry_assert_api_available ();
+
+#if JERRY_BUILTIN_PROXY
+  if (ecma_is_value_object (proxy_value))
+  {
+    ecma_object_t *object_p = ecma_get_object_from_value (proxy_value);
+
+    if (ECMA_OBJECT_IS_PROXY (object_p))
+    {
+      ecma_proxy_object_t *proxy_object_p = (ecma_proxy_object_t *) object_p;
+
+      if (!ecma_is_value_null (proxy_object_p->handler))
+      {
+        ecma_ref_object (ecma_get_object_from_value (proxy_object_p->handler));
+      }
+      return proxy_object_p->handler;
+    }
+  }
+#else /* !JERRY_BUILTIN_PROXY */
+  JERRY_UNUSED (proxy_value);
+#endif /* JERRY_BUILTIN_PROXY */
+
+  return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_argument_is_not_a_proxy)));
+} /* jerry_get_proxy_handler */
 
 /**
  * Validate UTF-8 string
@@ -5235,10 +5263,19 @@ jerry_backtrace_get_location (jerry_backtrace_frame_t *frame_p) /**< frame point
   if (frame_p->frame_type == JERRY_BACKTRACE_FRAME_JS)
   {
     vm_frame_ctx_t *context_p = frame_p->context_p;
+    const ecma_compiled_code_t *bytecode_header_p = context_p->shared_p->bytecode_header_p;
 
-    frame_p->location.resource_name = ecma_get_resource_name (context_p->shared_p->bytecode_header_p);
-    frame_p->location.line = context_p->current_line;
-    frame_p->location.column = 1;
+    if (!(bytecode_header_p->status_flags & CBC_CODE_FLAGS_HAS_LINE_INFO))
+    {
+      return NULL;
+    }
+
+    frame_p->location.resource_name = ecma_get_resource_name (bytecode_header_p);
+
+    ecma_line_info_get (ecma_compiled_code_get_line_info (bytecode_header_p),
+                        (uint32_t) (context_p->byte_code_p - context_p->byte_code_start_p),
+                        &frame_p->location);
+
     return &frame_p->location;
   }
 #endif /* JERRY_LINE_INFO */
@@ -5260,17 +5297,35 @@ jerry_backtrace_get_function (jerry_backtrace_frame_t *frame_p) /**< frame point
   {
     vm_frame_ctx_t *context_p = frame_p->context_p;
 
-    if (context_p->shared_p->status_flags & VM_FRAME_CTX_SHARED_HAS_ARG_LIST)
+    if (context_p->shared_p->function_object_p != NULL)
     {
-      vm_frame_ctx_shared_args_t *shared_args_p = (vm_frame_ctx_shared_args_t *) context_p->shared_p;
-
-      frame_p->function = ecma_make_object_value (shared_args_p->function_object_p);
+      frame_p->function = ecma_make_object_value (context_p->shared_p->function_object_p);
       return &frame_p->function;
     }
   }
 
   return NULL;
 } /* jerry_backtrace_get_function */
+
+/**
+ * Initialize and return with the 'this' binding private field of a backtrace frame.
+ * The 'this' binding is a hidden value passed to the called function. As for arrow
+ * functions, the 'this' binding is assigned at function creation.
+ *
+ * @return pointer to the 'this' binding - if the binding is available,
+ *         NULL - otherwise
+ */
+const jerry_value_t *
+jerry_backtrace_get_this (jerry_backtrace_frame_t *frame_p) /**< frame pointer */
+{
+  if (frame_p->frame_type == JERRY_BACKTRACE_FRAME_JS)
+  {
+    frame_p->this_binding = frame_p->context_p->this_binding;
+    return &frame_p->this_binding;
+  }
+
+  return NULL;
+} /* jerry_backtrace_get_this */
 
 /**
  * Returns true, if the code bound to the backtrace frame is strict mode code.
@@ -6302,7 +6357,6 @@ jerry_create_container (jerry_container_type_t container_type, /**< Type of the 
 
   switch (container_type)
   {
-#if JERRY_BUILTIN_MAP
     case JERRY_CONTAINER_TYPE_MAP:
     {
       lit_id = LIT_MAGIC_STRING_MAP_UL;
@@ -6310,8 +6364,6 @@ jerry_create_container (jerry_container_type_t container_type, /**< Type of the 
       ctor_id = ECMA_BUILTIN_ID_MAP;
       break;
     }
-#endif /* JERRY_BUILTIN_MAP */
-#if JERRY_BUILTIN_SET
     case JERRY_CONTAINER_TYPE_SET:
     {
       lit_id = LIT_MAGIC_STRING_SET_UL;
@@ -6319,8 +6371,6 @@ jerry_create_container (jerry_container_type_t container_type, /**< Type of the 
       ctor_id = ECMA_BUILTIN_ID_SET;
       break;
     }
-#endif /* JERRY_BUILTIN_SET */
-#if JERRY_BUILTIN_WEAKMAP
     case JERRY_CONTAINER_TYPE_WEAKMAP:
     {
       lit_id = LIT_MAGIC_STRING_WEAKMAP_UL;
@@ -6328,8 +6378,6 @@ jerry_create_container (jerry_container_type_t container_type, /**< Type of the 
       ctor_id = ECMA_BUILTIN_ID_WEAKMAP;
       break;
     }
-#endif /* JERRY_BUILTIN_WEAKMAP */
-#if JERRY_BUILTIN_WEAKSET
     case JERRY_CONTAINER_TYPE_WEAKSET:
     {
       lit_id = LIT_MAGIC_STRING_WEAKSET_UL;
@@ -6337,7 +6385,6 @@ jerry_create_container (jerry_container_type_t container_type, /**< Type of the 
       ctor_id = ECMA_BUILTIN_ID_WEAKSET;
       break;
     }
-#endif /* JERRY_BUILTIN_WEAKSET */
     default:
     {
       return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG ("Invalid container type")));
@@ -6361,7 +6408,7 @@ jerry_create_container (jerry_container_type_t container_type, /**< Type of the 
   JERRY_UNUSED (arguments_list_p);
   JERRY_UNUSED (arguments_list_len);
   JERRY_UNUSED (container_type);
-  return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG ("Containers are disabled")));
+  return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_container_not_supported_p)));
 #endif /* JERRY_BUILTIN_CONTAINER */
 } /* jerry_create_container */
 
@@ -6384,30 +6431,22 @@ jerry_get_container_type (const jerry_value_t value) /**< the container object *
     {
       switch (((ecma_extended_object_t *) obj_p)->u.cls.u2.container_id)
       {
-#if JERRY_BUILTIN_MAP
         case LIT_MAGIC_STRING_MAP_UL:
         {
           return JERRY_CONTAINER_TYPE_MAP;
         }
-#endif /* JERRY_BUILTIN_MAP */
-#if JERRY_BUILTIN_SET
         case LIT_MAGIC_STRING_SET_UL:
         {
           return JERRY_CONTAINER_TYPE_SET;
         }
-#endif /* JERRY_BUILTIN_SET */
-#if JERRY_BUILTIN_WEAKMAP
         case LIT_MAGIC_STRING_WEAKMAP_UL:
         {
           return JERRY_CONTAINER_TYPE_WEAKMAP;
         }
-#endif /* JERRY_BUILTIN_WEAKMAP */
-#if JERRY_BUILTIN_WEAKSET
         case LIT_MAGIC_STRING_WEAKSET_UL:
         {
           return JERRY_CONTAINER_TYPE_WEAKSET;
         }
-#endif /* JERRY_BUILTIN_WEAKSET */
         default:
         {
           return JERRY_CONTAINER_TYPE_INVALID;
@@ -6421,6 +6460,119 @@ jerry_get_container_type (const jerry_value_t value) /**< the container object *
 #endif /* JERRY_BUILTIN_CONTAINER */
   return JERRY_CONTAINER_TYPE_INVALID;
 } /* jerry_get_container_type */
+
+/**
+ * Return a new array containing elements from a Container or a Container Iterator.
+ * Sets the boolean input value to `true` if the container object has key/value pairs.
+ *
+ * Note:
+ *     the returned value must be freed with a jerry_release_value call
+ *
+ * @return an array of items for maps/sets or their iterators, error otherwise
+ */
+jerry_value_t
+jerry_get_array_from_container (jerry_value_t value, /**< the container or iterator object */
+                                bool *is_key_value_p) /**< [out] is key-value structure */
+{
+  jerry_assert_api_available ();
+
+#if JERRY_BUILTIN_CONTAINER
+  const char *container_needed = ECMA_ERR_MSG ("Value is not a Container or Iterator");
+
+  if (!ecma_is_value_object (value))
+  {
+    return jerry_throw (ecma_raise_type_error (container_needed));
+  }
+
+  ecma_object_t *obj_p = ecma_get_object_from_value (value);
+
+  if (ecma_get_object_type (obj_p) != ECMA_OBJECT_TYPE_CLASS)
+  {
+    return jerry_throw (ecma_raise_type_error (container_needed));
+  }
+
+  ecma_extended_object_t *ext_obj_p = (ecma_extended_object_t *) obj_p;
+
+  uint32_t entry_count;
+  uint8_t entry_size;
+
+  uint32_t index = 0;
+  uint8_t iterator_kind = ECMA_ITERATOR__COUNT;
+  ecma_value_t *start_p;
+
+  *is_key_value_p = false;
+
+  if (ext_obj_p->u.cls.type == ECMA_OBJECT_CLASS_MAP_ITERATOR
+      || ext_obj_p->u.cls.type == ECMA_OBJECT_CLASS_SET_ITERATOR)
+  {
+    ecma_value_t iterated_value = ext_obj_p->u.cls.u3.iterated_value;
+
+    if (ecma_is_value_empty (iterated_value))
+    {
+      return ecma_op_new_array_object_from_collection (ecma_new_collection (), false);
+    }
+
+    ecma_extended_object_t *map_object_p = (ecma_extended_object_t *) (ecma_get_object_from_value (iterated_value));
+
+    ecma_collection_t *container_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_collection_t, map_object_p->u.cls.u3.value);
+    entry_count = ECMA_CONTAINER_ENTRY_COUNT (container_p);
+    index = ext_obj_p->u.cls.u2.iterator_index;
+
+    entry_size = ecma_op_container_entry_size (map_object_p->u.cls.u2.container_id);
+    start_p = ECMA_CONTAINER_START (container_p);
+
+    iterator_kind = ext_obj_p->u.cls.u1.iterator_kind;
+  }
+  else if (jerry_get_container_type (value) != JERRY_CONTAINER_TYPE_INVALID)
+  {
+    ecma_collection_t *container_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_collection_t, ext_obj_p->u.cls.u3.value);
+    entry_count = ECMA_CONTAINER_ENTRY_COUNT (container_p);
+    entry_size = ecma_op_container_entry_size (ext_obj_p->u.cls.u2.container_id);
+
+    index = 0;
+    iterator_kind = ECMA_ITERATOR_KEYS;
+    start_p = ECMA_CONTAINER_START (container_p);
+
+    if (ext_obj_p->u.cls.u2.container_id == LIT_MAGIC_STRING_MAP_UL
+        || ext_obj_p->u.cls.u2.container_id == LIT_MAGIC_STRING_WEAKMAP_UL)
+    {
+      iterator_kind = ECMA_ITERATOR_ENTRIES;
+    }
+  }
+  else
+  {
+    return jerry_throw (ecma_raise_type_error (container_needed));
+  }
+
+  *is_key_value_p = (iterator_kind == ECMA_ITERATOR_ENTRIES);
+  ecma_collection_t *collection_buffer = ecma_new_collection ();
+
+  for (uint32_t i = index; i < entry_count; i += entry_size)
+  {
+    ecma_value_t *entry_p = start_p + i;
+
+    if (ecma_is_value_empty (*entry_p))
+    {
+      continue;
+    }
+
+    if (iterator_kind != ECMA_ITERATOR_VALUES)
+    {
+      ecma_collection_push_back (collection_buffer, ecma_copy_value_if_not_object (entry_p[0]));
+    }
+
+    if (iterator_kind != ECMA_ITERATOR_KEYS)
+    {
+      ecma_collection_push_back (collection_buffer, ecma_copy_value_if_not_object (entry_p[1]));
+    }
+  }
+  return ecma_op_new_array_object_from_collection (collection_buffer, false);
+#else /* JERRY_BUILTIN_CONTAINER */
+  JERRY_UNUSED (value);
+  JERRY_UNUSED (is_key_value_p);
+  return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_container_not_supported_p)));
+#endif
+} /* jerry_get_array_from_container */
 
 /**
  * @}

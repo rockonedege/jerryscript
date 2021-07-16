@@ -61,9 +61,11 @@ backtrace_callback (jerry_backtrace_frame_t *frame_p, /* frame information */
 
   const jerry_backtrace_location_t *location_p = jerry_backtrace_get_location (frame_p);
   const jerry_value_t *function_p = jerry_backtrace_get_function (frame_p);
+  const jerry_value_t *this_p = jerry_backtrace_get_this (frame_p);
 
   TEST_ASSERT (location_p != NULL);
   TEST_ASSERT (function_p != NULL);
+  TEST_ASSERT (this_p != NULL);
 
   compare_string (location_p->resource_name, "capture_test.js");
 
@@ -73,8 +75,9 @@ backtrace_callback (jerry_backtrace_frame_t *frame_p, /* frame information */
   {
     TEST_ASSERT (!jerry_backtrace_is_strict (frame_p));
     TEST_ASSERT (location_p->line == 2);
-    TEST_ASSERT (location_p->column == 1);
+    TEST_ASSERT (location_p->column == 3);
     TEST_ASSERT (handler_args_p[0] == *function_p);
+    TEST_ASSERT (handler_args_p[1] == *this_p);
     return true;
   }
 
@@ -82,18 +85,90 @@ backtrace_callback (jerry_backtrace_frame_t *frame_p, /* frame information */
   {
     TEST_ASSERT (jerry_backtrace_is_strict (frame_p));
     TEST_ASSERT (location_p->line == 7);
-    TEST_ASSERT (location_p->column == 1);
-    TEST_ASSERT (handler_args_p[1] == *function_p);
+    TEST_ASSERT (location_p->column == 6);
+    TEST_ASSERT (handler_args_p[2] == *function_p);
+    TEST_ASSERT (jerry_value_is_undefined (*this_p));
     return true;
   }
+
+  jerry_value_t global = jerry_get_global_object ();
 
   TEST_ASSERT (frame_index == 3);
   TEST_ASSERT (!jerry_backtrace_is_strict (frame_p));
   TEST_ASSERT (location_p->line == 11);
-  TEST_ASSERT (location_p->column == 1);
-  TEST_ASSERT (handler_args_p[2] == *function_p);
+  TEST_ASSERT (location_p->column == 3);
+  TEST_ASSERT (handler_args_p[3] == *function_p);
+  TEST_ASSERT (global == *this_p);
+
+  jerry_release_value (global);
   return false;
 } /* backtrace_callback */
+
+static bool
+async_backtrace_callback (jerry_backtrace_frame_t *frame_p, /* frame information */
+                          void *user_p) /* user data */
+{
+  TEST_ASSERT ((void *) handler_args_p == user_p);
+  TEST_ASSERT (jerry_backtrace_get_frame_type (frame_p) == JERRY_BACKTRACE_FRAME_JS);
+
+  const jerry_backtrace_location_t *location_p = jerry_backtrace_get_location (frame_p);
+  const jerry_value_t *function_p = jerry_backtrace_get_function (frame_p);
+
+  TEST_ASSERT (location_p != NULL);
+  TEST_ASSERT (function_p != NULL);
+
+  compare_string (location_p->resource_name, "async_capture_test.js");
+
+  ++frame_index;
+
+  if (frame_index == 1)
+  {
+    TEST_ASSERT (jerry_backtrace_is_strict (frame_p));
+    TEST_ASSERT (location_p->line == 3);
+    TEST_ASSERT (location_p->column == 3);
+    TEST_ASSERT (handler_args_p[0] == *function_p);
+    return true;
+  }
+
+  TEST_ASSERT (frame_index == 2);
+  TEST_ASSERT (!jerry_backtrace_is_strict (frame_p));
+  TEST_ASSERT (location_p->line == 8);
+  TEST_ASSERT (location_p->column == 3);
+  TEST_ASSERT (handler_args_p[1] == *function_p);
+  return true;
+} /* async_backtrace_callback */
+
+static bool
+class_backtrace_callback (jerry_backtrace_frame_t *frame_p, /* frame information */
+                          void *user_p) /* user data */
+{
+  TEST_ASSERT ((void *) handler_args_p == user_p);
+  TEST_ASSERT (jerry_backtrace_get_frame_type (frame_p) == JERRY_BACKTRACE_FRAME_JS);
+
+  const jerry_backtrace_location_t *location_p = jerry_backtrace_get_location (frame_p);
+  const jerry_value_t *function_p = jerry_backtrace_get_function (frame_p);
+
+  TEST_ASSERT (location_p != NULL);
+  TEST_ASSERT (function_p != NULL);
+
+  compare_string (location_p->resource_name, "class_capture_test.js");
+
+  ++frame_index;
+
+  if (frame_index == 1)
+  {
+    TEST_ASSERT (jerry_backtrace_is_strict (frame_p));
+    TEST_ASSERT (location_p->line == 3);
+    TEST_ASSERT (location_p->column == 14);
+    return false;
+  }
+
+  TEST_ASSERT (frame_index == 2);
+  TEST_ASSERT (jerry_backtrace_is_strict (frame_p));
+  TEST_ASSERT (location_p->line == 2);
+  TEST_ASSERT (location_p->column == 7);
+  return false;
+} /* class_backtrace_callback */
 
 static jerry_value_t
 capture_handler (const jerry_call_info_t *call_info_p, /**< call information */
@@ -104,12 +179,24 @@ capture_handler (const jerry_call_info_t *call_info_p, /**< call information */
   JERRY_UNUSED (args_p);
   JERRY_UNUSED (args_count);
 
-  TEST_ASSERT (args_count == 3);
+  TEST_ASSERT (args_count == 0 || args_count == 2 || args_count == 4);
+  TEST_ASSERT (args_count == 0 || frame_index == 0);
 
-  frame_index = 0;
+  jerry_backtrace_callback_t callback = backtrace_callback;
+
+  if (args_count == 0)
+  {
+    callback = class_backtrace_callback;
+  }
+  else if (args_count == 2)
+  {
+    callback = async_backtrace_callback;
+  }
+
   handler_args_p = args_p;
-  jerry_backtrace_capture (backtrace_callback, (void *) args_p);
-  TEST_ASSERT (frame_index == 3);
+  jerry_backtrace_capture (callback, (void *) args_p);
+
+  TEST_ASSERT (args_count == 0 || frame_index == (args_count == 4 ? 3 : 2));
 
   return jerry_create_undefined ();
 } /* capture_handler */
@@ -186,83 +273,153 @@ test_get_backtrace_api_call (void)
   register_callback (backtrace_handler, "backtrace");
   register_callback (capture_handler, "capture");
 
-  const char *source = ("function f() {\n"
-                        "  return backtrace(0);\n"
-                        "}\n"
-                        "\n"
-                        "function g() {\n"
-                        "  return f();\n"
-                        "}\n"
-                        "\n"
-                        "function h() {\n"
-                        "  return g();\n"
-                        "}\n"
-                        "\n"
-                        "h();\n");
+  const char *source_p = ("function f() {\n"
+                          "  return backtrace(0);\n"
+                          "}\n"
+                          "\n"
+                          "function g() {\n"
+                          "  return f();\n"
+                          "}\n"
+                          "\n"
+                          "function h() {\n"
+                          "  return g();\n"
+                          "}\n"
+                          "\n"
+                          "h();\n");
 
-  jerry_value_t backtrace = run ("something.js", source);
+  jerry_value_t backtrace = run ("something.js", source_p);
 
   TEST_ASSERT (!jerry_value_is_error (backtrace)
                && jerry_value_is_array (backtrace));
 
   TEST_ASSERT (jerry_get_array_length (backtrace) == 4);
 
-  compare (backtrace, 0, "something.js:2");
-  compare (backtrace, 1, "something.js:6");
-  compare (backtrace, 2, "something.js:10");
-  compare (backtrace, 3, "something.js:13");
+  compare (backtrace, 0, "something.js:2:3");
+  compare (backtrace, 1, "something.js:6:3");
+  compare (backtrace, 2, "something.js:10:3");
+  compare (backtrace, 3, "something.js:13:1");
 
   jerry_release_value (backtrace);
 
   /* Depth set to 2 this time. */
 
-  source = ("function f() {\n"
-            "  return backtrace(2);\n"
-            "}\n"
-            "\n"
-            "function g() {\n"
-            "  return f();\n"
-            "}\n"
-            "\n"
-            "function h() {\n"
-            "  return g();\n"
-            "}\n"
-            "\n"
-            "h();\n");
+  source_p = ("function f() {\n"
+              "  1; return backtrace(2);\n"
+              "}\n"
+              "\n"
+              "function g() {\n"
+              "  return f();\n"
+              "}\n"
+              "\n"
+              "function h() {\n"
+              "  return g();\n"
+              "}\n"
+              "\n"
+              "h();\n");
 
-  backtrace = run ("something_else.js", source);
+  backtrace = run ("something_else.js", source_p);
 
   TEST_ASSERT (!jerry_value_is_error (backtrace)
                && jerry_value_is_array (backtrace));
 
   TEST_ASSERT (jerry_get_array_length (backtrace) == 2);
 
-  compare (backtrace, 0, "something_else.js:2");
-  compare (backtrace, 1, "something_else.js:6");
+  compare (backtrace, 0, "something_else.js:2:6");
+  compare (backtrace, 1, "something_else.js:6:3");
 
   jerry_release_value (backtrace);
 
   /* Test frame capturing. */
 
-  source = ("function f() {\n"
-            "  return capture(f, g, h);\n"
-            "}\n"
-            "\n"
-            "function g() {\n"
-            "  'use strict';\n"
-            "  return f();\n"
-            "}\n"
-            "\n"
-            "function h() {\n"
-            "  return g();\n"
-            "}\n"
-            "\n"
-            "h();\n");
+  frame_index = 0;
+  source_p = ("var o = { f:function() {\n"
+              "  return capture(o.f, o, g, h);\n"
+              "} }\n"
+              "\n"
+              "function g() {\n"
+              "  'use strict';\n"
+              "  1; return o.f();\n"
+              "}\n"
+              "\n"
+              "function h() {\n"
+              "  return g();\n"
+              "}\n"
+              "\n"
+              "h();\n");
 
-  backtrace = run ("capture_test.js", source);
+  jerry_value_t result = run ("capture_test.js", source_p);
 
-  TEST_ASSERT (jerry_value_is_undefined (backtrace));
-  jerry_release_value (backtrace);
+  TEST_ASSERT (jerry_value_is_undefined (result));
+  jerry_release_value (result);
+
+  TEST_ASSERT (frame_index == 3);
+
+  /* Test async frame capturing. */
+  source_p = "async function f() {}";
+  result = jerry_eval ((const jerry_char_t *) source_p, strlen (source_p), JERRY_PARSE_NO_OPTS);
+
+  if (!jerry_value_is_error (result))
+  {
+    jerry_release_value (result);
+
+    frame_index = 0;
+    source_p = ("function f() {\n"
+                "  'use strict';\n"
+                "  return capture(f, g);\n"
+                "}\n"
+                "\n"
+                "async function g() {\n"
+                "  await 0;\n"
+                "  return f();\n"
+                "}\n"
+                "\n"
+                "g();\n");
+
+    result = run ("async_capture_test.js", source_p);
+
+    TEST_ASSERT (jerry_value_is_promise (result));
+    jerry_release_value (result);
+
+    TEST_ASSERT (frame_index == 0);
+
+    result = jerry_run_all_enqueued_jobs ();
+    TEST_ASSERT (!jerry_value_is_error (result));
+
+    TEST_ASSERT (frame_index == 2);
+  }
+  else
+  {
+    TEST_ASSERT (jerry_get_error_type (result) == JERRY_ERROR_SYNTAX);
+  }
+
+  jerry_release_value (result);
+
+  /* Test class initializer frame capturing. */
+  source_p = "class C {}";
+  result = jerry_eval ((const jerry_char_t *) source_p, strlen (source_p), JERRY_PARSE_NO_OPTS);
+
+  if (!jerry_value_is_error (result))
+  {
+    jerry_release_value (result);
+
+    frame_index = 0;
+    source_p = ("class C {\n"
+                "  a = capture();\n"
+                "  static b = capture();\n"
+                "}\n"
+                "new C;\n");
+
+    result = run ("class_capture_test.js", source_p);
+
+    TEST_ASSERT (!jerry_value_is_error (result));
+    TEST_ASSERT (frame_index == 2);
+  }
+  else
+  {
+    TEST_ASSERT (jerry_get_error_type (result) == JERRY_ERROR_SYNTAX);
+  }
+
+  jerry_release_value (result);
 
   jerry_cleanup ();
 } /* test_get_backtrace_api_call */
@@ -301,9 +458,9 @@ test_exception_backtrace (void)
 
   TEST_ASSERT (jerry_get_array_length (backtrace) == 3);
 
-  compare (backtrace, 0, "bad.js:2");
-  compare (backtrace, 1, "bad.js:6");
-  compare (backtrace, 2, "bad.js:9");
+  compare (backtrace, 0, "bad.js:2:3");
+  compare (backtrace, 1, "bad.js:6:3");
+  compare (backtrace, 2, "bad.js:9:1");
 
   jerry_release_value (backtrace);
 
@@ -348,7 +505,7 @@ test_large_line_count (void)
 
   TEST_ASSERT (jerry_get_array_length (backtrace) == 1);
 
-  compare (backtrace, 0, "bad.js:385");
+  compare (backtrace, 0, "bad.js:385:1");
 
   jerry_release_value (backtrace);
 

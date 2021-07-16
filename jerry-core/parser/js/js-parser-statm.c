@@ -485,6 +485,9 @@ parser_parse_var_statement (parser_context_t *context_p) /**< context */
 #if JERRY_DEBUGGER || JERRY_LINE_INFO
       parser_line_counter_t ident_line_counter = context_p->token.line;
 #endif /* JERRY_DEBUGGER || JERRY_LINE_INFO */
+#if JERRY_LINE_INFO
+      parser_line_counter_t ident_column_counter = context_p->token.column;
+#endif /* JERRY_LINE_INFO */
 
 #if JERRY_MODULE_SYSTEM
       parser_module_append_export_name (context_p);
@@ -522,10 +525,7 @@ parser_parse_var_statement (parser_context_t *context_p) /**< context */
 #endif /* JERRY_DEBUGGER */
 
 #if JERRY_LINE_INFO
-        if (ident_line_counter != context_p->last_line_info_line)
-        {
-          parser_emit_line_info (context_p, ident_line_counter, false);
-        }
+        parser_line_info_append (context_p, ident_line_counter, ident_column_counter);
 #endif /* JERRY_LINE_INFO */
 
         uint16_t index = context_p->lit_object.index;
@@ -1866,10 +1866,7 @@ parser_parse_switch_statement_start (parser_context_t *context_p) /**< context *
     switch_case_was_found = true;
 
 #if JERRY_LINE_INFO
-    if (context_p->token.line != context_p->last_line_info_line)
-    {
-      parser_emit_line_info (context_p, context_p->token.line, true);
-    }
+    parser_line_info_append (context_p, context_p->token.line, context_p->token.column);
 #endif /* JERRY_LINE_INFO */
 
     parser_parse_expression (context_p, PARSE_EXPR);
@@ -2618,13 +2615,47 @@ parser_parse_export_statement (parser_context_t *context_p) /**< context */
     case LEXER_MULTIPLY:
     {
       lexer_next_token (context_p);
+
+      ecma_module_node_t **target_node_list_p = &(JERRY_CONTEXT (module_current_p)->star_exports_p);
+
+      if (lexer_token_is_identifier (context_p, "as", 2))
+      {
+        target_node_list_p = &(JERRY_CONTEXT (module_current_p)->indirect_exports_p);
+
+        lexer_next_token (context_p);
+
+        if (context_p->token.type != LEXER_LITERAL
+            || context_p->token.lit_location.type != LEXER_IDENT_LITERAL)
+        {
+          parser_raise_error (context_p, PARSER_ERR_IDENTIFIER_EXPECTED);
+        }
+
+        lexer_construct_literal_object (context_p, &context_p->token.lit_location, LEXER_NEW_IDENT_LITERAL);
+
+        lexer_literal_t *literal_p = PARSER_GET_LITERAL (context_p->lit_object.index);
+        ecma_string_t *export_name_p = ecma_new_ecma_string_from_utf8 (literal_p->u.char_p,
+                                                                       literal_p->prop.length);
+
+        if (parser_module_check_duplicate_export (context_p, export_name_p))
+        {
+          ecma_deref_ecma_string (export_name_p);
+          parser_raise_error (context_p, PARSER_ERR_DUPLICATED_EXPORT_IDENTIFIER);
+        }
+
+        ecma_string_t *local_name_p = ecma_get_magic_string (LIT_MAGIC_STRING_ASTERIX_CHAR);
+        parser_module_add_names_to_node (context_p, export_name_p, local_name_p);
+        ecma_deref_ecma_string (export_name_p);
+
+        lexer_next_token (context_p);
+      }
+
       if (!lexer_token_is_identifier (context_p, "from", 4))
       {
         parser_raise_error (context_p, PARSER_ERR_FROM_EXPECTED);
       }
 
       lexer_next_token (context_p);
-      parser_module_handle_module_specifier (context_p, &(JERRY_CONTEXT (module_current_p)->star_exports_p));
+      parser_module_handle_module_specifier (context_p, target_node_list_p);
       return false;
     }
     case LEXER_KEYW_VAR:
@@ -2800,7 +2831,7 @@ parser_parse_statements (parser_context_t *context_p) /**< context */
       }
 #endif /* JERRY_DEBUGGER */
 #if JERRY_LINE_INFO
-      parser_emit_line_info (context_p, context_p->token.line, false);
+      parser_line_info_append (context_p, context_p->token.line, context_p->token.column);
 #endif /* JERRY_LINE_INFO */
 
       lexer_construct_literal_object (context_p, &lit_location, LEXER_STRING_LITERAL);
@@ -2885,8 +2916,7 @@ parser_parse_statements (parser_context_t *context_p) /**< context */
 #endif /* JERRY_DEBUGGER */
 
 #if JERRY_LINE_INFO
-    if (context_p->token.line != context_p->last_line_info_line
-        && context_p->token.type != LEXER_SEMICOLON
+    if (context_p->token.type != LEXER_SEMICOLON
         && context_p->token.type != LEXER_LEFT_BRACE
         && context_p->token.type != LEXER_RIGHT_BRACE
         && context_p->token.type != LEXER_KEYW_VAR
@@ -2896,7 +2926,7 @@ parser_parse_statements (parser_context_t *context_p) /**< context */
         && context_p->token.type != LEXER_KEYW_CASE
         && context_p->token.type != LEXER_KEYW_DEFAULT)
     {
-      parser_emit_line_info (context_p, context_p->token.line, true);
+      parser_line_info_append (context_p, context_p->token.line, context_p->token.column);
     }
 #endif /* JERRY_LINE_INFO */
 
@@ -3309,6 +3339,13 @@ parser_parse_statements (parser_context_t *context_p) /**< context */
       {
         if (context_p->status_flags & PARSER_IS_CLOSURE)
         {
+#if JERRY_LINE_INFO
+          if (context_p->line_info.first_page_p == NULL)
+          {
+            parser_line_info_append (context_p, context_p->token.line, context_p->token.column);
+          }
+#endif /* JERRY_LINE_INFO */
+
           parser_stack_pop_uint8 (context_p);
           context_p->last_statement.current_p = NULL;
           /* There is no lexer_next_token here, since the
@@ -3471,6 +3508,13 @@ consume_last_statement:
   {
     parser_raise_error (context_p, PARSER_ERR_STATEMENT_EXPECTED);
   }
+
+#if JERRY_LINE_INFO
+  if (context_p->line_info.first_page_p == NULL)
+  {
+    parser_line_info_append (context_p, context_p->token.line, context_p->token.column);
+  }
+#endif /* JERRY_LINE_INFO */
 } /* parser_parse_statements */
 
 /**
