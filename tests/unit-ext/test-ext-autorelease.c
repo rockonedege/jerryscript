@@ -18,6 +18,7 @@
  */
 
 #include "jerryscript.h"
+
 #include "jerryscript-ext/autorelease.h"
 #include "test-common.h"
 
@@ -32,8 +33,7 @@ native_free_cb (void *native_p, /**< native pointer */
   ++native_free_cb_call_count;
 } /* native_free_cb */
 
-static const jerry_object_native_info_t native_info =
-{
+static const jerry_object_native_info_t native_info = {
   .free_cb = native_free_cb,
   .number_of_references = 0,
   .offset_of_references = 0,
@@ -42,8 +42,8 @@ static const jerry_object_native_info_t native_info =
 static jerry_value_t
 create_object (void)
 {
-  jerry_value_t obj = jerry_create_object ();
-  jerry_set_object_native_pointer (obj, NULL, &native_info);
+  jerry_value_t obj = jerry_object ();
+  jerry_object_set_native_ptr (obj, &native_info, NULL);
   return obj;
 } /* create_object */
 
@@ -61,7 +61,7 @@ main (void)
 
   native_free_cb_call_count = 0;
   test_autorelease_val ();
-  jerry_gc (JERRY_GC_PRESSURE_HIGH);
+  jerry_heap_gc (JERRY_GC_PRESSURE_HIGH);
   TEST_ASSERT (native_free_cb_call_count == 1);
 
   jerry_cleanup ();

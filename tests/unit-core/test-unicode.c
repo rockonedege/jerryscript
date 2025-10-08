@@ -14,24 +14,23 @@
  */
 
 #include "jerryscript.h"
+
 #include "test-common.h"
 
 static bool
 test_syntax_error (char *script_p) /**< script */
 {
-  jerry_value_t parse_result = jerry_parse ((const jerry_char_t *) script_p,
-                                            strlen (script_p),
-                                            NULL);
+  jerry_value_t parse_result = jerry_parse ((const jerry_char_t *) script_p, strlen (script_p), NULL);
 
   bool result = false;
 
-  if (jerry_value_is_error (parse_result))
+  if (jerry_value_is_exception (parse_result))
   {
     result = true;
-    TEST_ASSERT (jerry_get_error_type (parse_result) == JERRY_ERROR_SYNTAX);
+    TEST_ASSERT (jerry_error_type (parse_result) == JERRY_ERROR_SYNTAX);
   }
 
-  jerry_release_value (parse_result);
+  jerry_value_free (parse_result);
   return result;
 } /* test_syntax_error */
 

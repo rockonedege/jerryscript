@@ -18,6 +18,7 @@
  */
 
 #include "ecma-gc.h"
+
 #include "jcontext.h"
 #include "jmem.h"
 #include "jrt-bit-fields.h"
@@ -47,7 +48,14 @@
 #define JMEM_HEAP_GET_OFFSET_FROM_ADDR(p) ((uint32_t) (p))
 #define JMEM_HEAP_GET_ADDR_FROM_OFFSET(u) ((jmem_heap_free_t *) (u))
 #else /* !ECMA_VALUE_CAN_STORE_UINTPTR_VALUE_DIRECTLY */
-#define JMEM_HEAP_GET_OFFSET_FROM_ADDR(p) ((uint32_t) ((uint8_t *) (p) - JERRY_HEAP_CONTEXT (area)))
+/**
+ * Get heap offset from address
+ */
+#define JMEM_HEAP_GET_OFFSET_FROM_ADDR(p) ((uint32_t) ((uint8_t *) (p) -JERRY_HEAP_CONTEXT (area)))
+
+/**
+ * Get heap address from offset
+ */
 #define JMEM_HEAP_GET_ADDR_FROM_OFFSET(u) ((jmem_heap_free_t *) (JERRY_HEAP_CONTEXT (area) + (u)))
 #endif /* ECMA_VALUE_CAN_STORE_UINTPTR_VALUE_DIRECTLY */
 /**
@@ -59,7 +67,7 @@
  *
  * @return pointer to the end of the region
  */
-static inline jmem_heap_free_t *  JERRY_ATTR_ALWAYS_INLINE JERRY_ATTR_PURE
+static inline jmem_heap_free_t *JERRY_ATTR_ALWAYS_INLINE JERRY_ATTR_PURE
 jmem_heap_get_region_end (jmem_heap_free_t *curr_p) /**< current region */
 {
   return (jmem_heap_free_t *) ((uint8_t *) curr_p + curr_p->size);
@@ -119,7 +127,7 @@ jmem_heap_finalize (void)
  * @return pointer to allocated memory block - if allocation is successful,
  *         NULL - if there is not enough memory.
  */
-static void * JERRY_ATTR_HOT
+static void *JERRY_ATTR_HOT
 jmem_heap_alloc (const size_t size) /**< size of requested block */
 {
 #if !JERRY_SYSTEM_ALLOCATOR
@@ -130,8 +138,7 @@ jmem_heap_alloc (const size_t size) /**< size of requested block */
   JMEM_VALGRIND_DEFINED_SPACE (&JERRY_HEAP_CONTEXT (first), sizeof (jmem_heap_free_t));
 
   /* Fast path for 8 byte chunks, first region is guaranteed to be sufficient. */
-  if (required_size == JMEM_ALIGNMENT
-      && JERRY_LIKELY (JERRY_HEAP_CONTEXT (first).next_offset != JMEM_HEAP_END_OF_LIST))
+  if (required_size == JMEM_ALIGNMENT && JERRY_LIKELY (JERRY_HEAP_CONTEXT (first).next_offset != JMEM_HEAP_END_OF_LIST))
   {
     data_space_p = JMEM_HEAP_GET_ADDR_FROM_OFFSET (JERRY_HEAP_CONTEXT (first).next_offset);
     JERRY_ASSERT (jmem_is_heap_pointer (data_space_p));
@@ -261,7 +268,7 @@ jmem_heap_alloc (const size_t size) /**< size of requested block */
  * Note:
  *    Each failed allocation attempt tries to reclaim memory with an increasing pressure,
  *    up to 'max_pressure', or until a sufficient memory block is found. When JMEM_PRESSURE_FULL
- *    is reached, the engine is terminated with ERR_OUT_OF_MEMORY. The `max_pressure` argument
+ *    is reached, the engine is terminated with JERRY_FATAL_OUT_OF_MEMORY. The `max_pressure` argument
  *    can be used to limit the maximum pressure, and prevent the engine from terminating.
  *
  * @return NULL, if the required memory size is 0 or not enough memory
@@ -302,8 +309,11 @@ jmem_heap_gc_and_alloc_block (const size_t size, /**< required memory size */
 
 /**
  * Internal method for allocating a memory block.
+ *
+ * @return NULL, if the required memory size is 0 or not enough memory, or
+ *         pointer to the allocated memory block, if allocation is successful
  */
-extern inline void * JERRY_ATTR_HOT JERRY_ATTR_ALWAYS_INLINE
+extern inline void *JERRY_ATTR_HOT JERRY_ATTR_ALWAYS_INLINE
 jmem_heap_alloc_block_internal (const size_t size) /**< required memory size */
 {
   return jmem_heap_gc_and_alloc_block (size, JMEM_PRESSURE_FULL);
@@ -313,12 +323,12 @@ jmem_heap_alloc_block_internal (const size_t size) /**< required memory size */
  * Allocation of memory block, reclaiming unused memory if there is not enough.
  *
  * Note:
- *      If a sufficiently sized block can't be found, the engine will be terminated with ERR_OUT_OF_MEMORY.
+ *      If a sufficiently sized block can't be found, the engine will be terminated with JERRY_FATAL_OUT_OF_MEMORY.
  *
  * @return NULL, if the required memory is 0
  *         pointer to allocated memory block, otherwise
  */
-extern inline void * JERRY_ATTR_HOT JERRY_ATTR_ALWAYS_INLINE
+extern inline void *JERRY_ATTR_HOT JERRY_ATTR_ALWAYS_INLINE
 jmem_heap_alloc_block (const size_t size) /**< required memory size */
 {
   void *block_p = jmem_heap_gc_and_alloc_block (size, JMEM_PRESSURE_FULL);
@@ -336,7 +346,7 @@ jmem_heap_alloc_block (const size_t size) /**< required memory size */
  *         also NULL, if the allocation has failed
  *         pointer to the allocated memory block, otherwise
  */
-extern inline void * JERRY_ATTR_HOT JERRY_ATTR_ALWAYS_INLINE
+extern inline void *JERRY_ATTR_HOT JERRY_ATTR_ALWAYS_INLINE
 jmem_heap_alloc_block_null_on_error (const size_t size) /**< required memory size */
 {
   void *block_p = jmem_heap_gc_and_alloc_block (size, JMEM_PRESSURE_HIGH);
@@ -358,7 +368,7 @@ jmem_heap_alloc_block_null_on_error (const size_t size) /**< required memory siz
  * @return pointer to the preceeding block
  */
 static jmem_heap_free_t *
-jmem_heap_find_prev (const jmem_heap_free_t * const block_p) /**< which memory block's predecessor we're looking for */
+jmem_heap_find_prev (const jmem_heap_free_t *const block_p) /**< which memory block's predecessor we're looking for */
 {
   const jmem_heap_free_t *prev_p;
 
@@ -378,7 +388,7 @@ jmem_heap_find_prev (const jmem_heap_free_t * const block_p) /**< which memory b
   /* Find position of region in the list. */
   while (prev_p->next_offset < block_offset)
   {
-    const jmem_heap_free_t * const next_p = JMEM_HEAP_GET_ADDR_FROM_OFFSET (prev_p->next_offset);
+    const jmem_heap_free_t *const next_p = JMEM_HEAP_GET_ADDR_FROM_OFFSET (prev_p->next_offset);
     JERRY_ASSERT (jmem_is_heap_pointer (next_p));
 
     JMEM_VALGRIND_DEFINED_SPACE (next_p, sizeof (jmem_heap_free_t));
@@ -452,7 +462,7 @@ jmem_heap_insert_block (jmem_heap_free_t *block_p, /**< block to insert */
  */
 void JERRY_ATTR_HOT
 jmem_heap_free_block_internal (void *ptr, /**< pointer to beginning of data space of the block */
-                               const size_t size) /**< size of allocated region */
+                               const size_t size /**< size of allocated region */)
 {
   JERRY_ASSERT (size > 0);
   JERRY_ASSERT (JERRY_CONTEXT (jmem_heap_limit) >= JERRY_CONTEXT (jmem_heap_allocated_size));
@@ -489,7 +499,7 @@ jmem_heap_free_block_internal (void *ptr, /**< pointer to beginning of data spac
  *
  * @return pointer to the reallocated region
  */
-void * JERRY_ATTR_HOT
+void *JERRY_ATTR_HOT
 jmem_heap_realloc_block (void *ptr, /**< memory region to reallocate */
                          const size_t old_size, /**< current size of the region */
                          const size_t new_size) /**< desired new size */
@@ -500,7 +510,7 @@ jmem_heap_realloc_block (void *ptr, /**< memory region to reallocate */
   JERRY_ASSERT (old_size != 0);
   JERRY_ASSERT (new_size != 0);
 
-  jmem_heap_free_t * const block_p = (jmem_heap_free_t *) ptr;
+  jmem_heap_free_t *const block_p = (jmem_heap_free_t *) ptr;
   const size_t aligned_new_size = (new_size + JMEM_ALIGNMENT - 1) / JMEM_ALIGNMENT * JMEM_ALIGNMENT;
   const size_t aligned_old_size = (old_size + JMEM_ALIGNMENT - 1) / JMEM_ALIGNMENT * JMEM_ALIGNMENT;
 
@@ -544,7 +554,7 @@ jmem_heap_realloc_block (void *ptr, /**< memory region to reallocate */
 
   jmem_heap_free_t *prev_p = jmem_heap_find_prev (block_p);
   JMEM_VALGRIND_DEFINED_SPACE (prev_p, sizeof (jmem_heap_free_t));
-  jmem_heap_free_t * const next_p = JMEM_HEAP_GET_ADDR_FROM_OFFSET (prev_p->next_offset);
+  jmem_heap_free_t *const next_p = JMEM_HEAP_GET_ADDR_FROM_OFFSET (prev_p->next_offset);
 
   /* Check if block can be extended at the end */
   if (((jmem_heap_free_t *) ((uint8_t *) block_p + aligned_old_size)) == next_p)
@@ -738,33 +748,20 @@ jmem_heap_stats_print (void)
 
   JERRY_DEBUG_MSG ("Heap stats:\n");
 #if !JERRY_SYSTEM_ALLOCATOR
-  JERRY_DEBUG_MSG ("  Heap size = %zu bytes\n",
-                   heap_stats->size);
+  JERRY_DEBUG_MSG ("  Heap size = %u bytes\n", (unsigned) heap_stats->size);
 #endif /* !JERRY_SYSTEM_ALLOCATOR */
-  JERRY_DEBUG_MSG ("  Allocated = %zu bytes\n"
-                   "  Peak allocated = %zu bytes\n"
-                   "  Waste = %zu bytes\n"
-                   "  Peak waste = %zu bytes\n"
-                   "  Allocated byte code data = %zu bytes\n"
-                   "  Peak allocated byte code data = %zu bytes\n"
-                   "  Allocated string data = %zu bytes\n"
-                   "  Peak allocated string data = %zu bytes\n"
-                   "  Allocated object data = %zu bytes\n"
-                   "  Peak allocated object data = %zu bytes\n"
-                   "  Allocated property data = %zu bytes\n"
-                   "  Peak allocated property data = %zu bytes\n",
-                   heap_stats->allocated_bytes,
-                   heap_stats->peak_allocated_bytes,
-                   heap_stats->waste_bytes,
-                   heap_stats->peak_waste_bytes,
-                   heap_stats->byte_code_bytes,
-                   heap_stats->peak_byte_code_bytes,
-                   heap_stats->string_bytes,
-                   heap_stats->peak_string_bytes,
-                   heap_stats->object_bytes,
-                   heap_stats->peak_object_bytes,
-                   heap_stats->property_bytes,
-                   heap_stats->peak_property_bytes);
+  JERRY_DEBUG_MSG ("  Allocated = %u bytes\n", (unsigned) heap_stats->allocated_bytes);
+  JERRY_DEBUG_MSG ("  Peak allocated = %u bytes\n", (unsigned) heap_stats->peak_allocated_bytes);
+  JERRY_DEBUG_MSG ("  Waste = %u bytes\n", (unsigned) heap_stats->waste_bytes);
+  JERRY_DEBUG_MSG ("  Peak waste = %u bytes\n", (unsigned) heap_stats->peak_waste_bytes);
+  JERRY_DEBUG_MSG ("  Allocated byte code data = %u bytes\n", (unsigned) heap_stats->byte_code_bytes);
+  JERRY_DEBUG_MSG ("  Peak allocated byte code data = %u bytes\n", (unsigned) heap_stats->peak_byte_code_bytes);
+  JERRY_DEBUG_MSG ("  Allocated string data = %u bytes\n", (unsigned) heap_stats->string_bytes);
+  JERRY_DEBUG_MSG ("  Peak allocated string data = %u bytes\n", (unsigned) heap_stats->peak_string_bytes);
+  JERRY_DEBUG_MSG ("  Allocated object data = %u bytes\n", (unsigned) heap_stats->object_bytes);
+  JERRY_DEBUG_MSG ("  Peak allocated object data = %u bytes\n", (unsigned) heap_stats->peak_object_bytes);
+  JERRY_DEBUG_MSG ("  Allocated property data = %u bytes\n", (unsigned) heap_stats->property_bytes);
+  JERRY_DEBUG_MSG ("  Peak allocated property data = %u bytes\n", (unsigned) heap_stats->peak_property_bytes);
 } /* jmem_heap_stats_print */
 
 /**

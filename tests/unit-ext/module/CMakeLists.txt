@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required (VERSION 2.8.12)
+cmake_minimum_required (VERSION 3.10)
 set(JERRYX_MODULE_UNITTEST_NAME unit-test-jerry-module)
 project (${JERRYX_MODULE_UNITTEST_NAME} C)
 
@@ -29,5 +29,5 @@ endif()
 add_executable(${JERRYX_MODULE_UNITTEST_NAME} ${JERRYX_MODULE_UNIT_TEST_SOURCES})
 set_property(TARGET ${JERRYX_MODULE_UNITTEST_NAME} PROPERTY LINK_FLAGS "${LINKER_FLAGS_COMMON}")
 set_property(TARGET ${JERRYX_MODULE_UNITTEST_NAME} PROPERTY RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
-target_link_libraries(${JERRYX_MODULE_UNITTEST_NAME} jerry-ext jerry-core jerry-port-default)
+target_link_libraries(${JERRYX_MODULE_UNITTEST_NAME} jerry-ext jerry-core jerry-port)
 target_include_directories(${JERRYX_MODULE_UNITTEST_NAME} PRIVATE ${INCLUDE_UNIT_EXT})

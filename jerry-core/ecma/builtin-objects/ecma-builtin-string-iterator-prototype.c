@@ -17,8 +17,6 @@
 #include "ecma-builtins.h"
 #include "ecma-iterator-object.h"
 
-#if JERRY_ESNEXT
-
 #define ECMA_BUILTINS_INTERNAL
 #include "ecma-builtins-internal.h"
 
@@ -37,7 +35,7 @@ enum
 };
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-string-iterator-prototype.inc.h"
-#define BUILTIN_UNDERSCORED_ID string_iterator_prototype
+#define BUILTIN_UNDERSCORED_ID  string_iterator_prototype
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -68,7 +66,7 @@ ecma_builtin_string_iterator_prototype_object_next (ecma_value_t this_val) /**< 
   /* 1 - 2. */
   if (!ecma_is_value_object (this_val))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_OBJECT);
   }
 
   ecma_object_t *obj_p = ecma_get_object_from_value (this_val);
@@ -77,7 +75,7 @@ ecma_builtin_string_iterator_prototype_object_next (ecma_value_t this_val) /**< 
   /* 3. */
   if (!ecma_object_class_is (obj_p, ECMA_OBJECT_CLASS_STRING_ITERATOR))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an iterator"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_ITERATOR);
   }
 
   ecma_value_t iterated_value = ext_obj_p->u.cls.u3.iterated_value;
@@ -157,10 +155,8 @@ ecma_builtin_string_iterator_prototype_object_next (ecma_value_t this_val) /**< 
     ext_obj_p->u.cls.u2.iterator_index = ECMA_ITERATOR_INDEX_LIMIT;
 
     ecma_string_t *prop_name_p = ecma_get_magic_string (LIT_INTERNAL_MAGIC_STRING_ITERATOR_NEXT_INDEX);
-    ecma_value_t put_result = ecma_op_object_put (obj_p,
-                                                  prop_name_p,
-                                                  ecma_make_length_value (position + result_size),
-                                                  true);
+    ecma_value_t put_result =
+      ecma_op_object_put (obj_p, prop_name_p, ecma_make_length_value (position + result_size), true);
 
     JERRY_ASSERT (ecma_is_value_true (put_result));
   }
@@ -207,5 +203,3 @@ ecma_builtin_string_iterator_prototype_dispatch_routine (uint8_t builtin_routine
  * @}
  * @}
  */
-
-#endif /* JERRY_ESNEXT */

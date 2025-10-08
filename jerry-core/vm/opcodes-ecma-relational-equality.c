@@ -19,6 +19,7 @@
 #include "ecma-function-object.h"
 #include "ecma-helpers.h"
 #include "ecma-objects.h"
+
 #include "opcodes.h"
 
 /** \addtogroup vm Virtual machine
@@ -29,24 +30,22 @@
  */
 
 /**
-* Equality opcode handler.
-*
-* See also: ECMA-262 v5, 11.9.1, 11.9.2
-*
-* @return ecma value
-*         Returned value must be freed with ecma_free_value
-*/
+ * Equality opcode handler.
+ *
+ * See also: ECMA-262 v5, 11.9.1, 11.9.2
+ *
+ * @return ecma value
+ *         Returned value must be freed with ecma_free_value
+ */
 ecma_value_t
 opfunc_equality (ecma_value_t left_value, /**< left value */
                  ecma_value_t right_value) /**< right value */
 {
-  JERRY_ASSERT (!ECMA_IS_VALUE_ERROR (left_value)
-                && !ECMA_IS_VALUE_ERROR (right_value));
+  JERRY_ASSERT (!ECMA_IS_VALUE_ERROR (left_value) && !ECMA_IS_VALUE_ERROR (right_value));
 
   ecma_value_t compare_result = ecma_op_abstract_equality_compare (left_value, right_value);
 
-  JERRY_ASSERT (ecma_is_value_boolean (compare_result)
-                || ECMA_IS_VALUE_ERROR (compare_result));
+  JERRY_ASSERT (ecma_is_value_boolean (compare_result) || ECMA_IS_VALUE_ERROR (compare_result));
 
   return compare_result;
 } /* opfunc_equality */
@@ -65,8 +64,7 @@ opfunc_relation (ecma_value_t left_value, /**< left value */
                  bool left_first, /**< 'LeftFirst' flag */
                  bool is_invert) /**< is invert */
 {
-  JERRY_ASSERT (!ECMA_IS_VALUE_ERROR (left_value)
-                && !ECMA_IS_VALUE_ERROR (right_value));
+  JERRY_ASSERT (!ECMA_IS_VALUE_ERROR (left_value) && !ECMA_IS_VALUE_ERROR (right_value));
 
   ecma_value_t ret_value = ecma_op_abstract_relational_compare (left_value, right_value, left_first);
 
@@ -106,10 +104,9 @@ opfunc_instanceof (ecma_value_t left_value, /**< left value */
 {
   if (!ecma_is_value_object (right_value))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Right value of 'instanceof' must be an object"));
+    return ecma_raise_type_error (ECMA_ERR_RIGHT_VALUE_OF_INSTANCEOF_MUST_BE_AN_OBJECT);
   }
 
-#if JERRY_ESNEXT
   ecma_value_t has_instance_method = ecma_op_get_method_by_symbol_id (right_value, LIT_GLOBAL_SYMBOL_HAS_INSTANCE);
   if (ECMA_IS_VALUE_ERROR (has_instance_method))
   {
@@ -133,7 +130,6 @@ opfunc_instanceof (ecma_value_t left_value, /**< left value */
 
     return ecma_make_boolean_value (has_instance);
   }
-#endif /* JERRY_ESNEXT */
 
   ecma_object_t *right_value_obj_p = ecma_get_object_from_value (right_value);
   return ecma_op_object_has_instance (right_value_obj_p, left_value);
@@ -155,7 +151,7 @@ opfunc_in (ecma_value_t left_value, /**< left value */
 {
   if (!ecma_is_value_object (right_value))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Right value of 'in' must be an object"));
+    return ecma_raise_type_error (ECMA_ERR_RIGHT_VALUE_OF_IN_MUST_BE_AN_OBJECT);
   }
 
   ecma_string_t *property_name_p = ecma_op_to_property_key (left_value);

@@ -19,18 +19,17 @@
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-iterator-object.h"
+
 #include "jcontext.h"
 #include "opcodes.h"
 #include "vm-defines.h"
-
-#if JERRY_ESNEXT
 
 #define ECMA_BUILTINS_INTERNAL
 #include "ecma-builtins-internal.h"
 
 /**
-  * This object has a custom dispatch function.
-  */
+ * This object has a custom dispatch function.
+ */
 #define BUILTIN_CUSTOM_DISPATCH
 
 /**
@@ -45,7 +44,7 @@ enum
 } ecma_generator_operation_type_t;
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-generator-prototype.inc.h"
-#define BUILTIN_UNDERSCORED_ID generator_prototype
+#define BUILTIN_UNDERSCORED_ID  generator_prototype
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -54,26 +53,25 @@ enum
  * \addtogroup ecmabuiltins
  * @{
  *
- * \addtogroup generator ECMA Generator.prototype object built-in
+ * \addtogroup generatorprototype ECMA Generator.prototype object built-in
  * @{
  */
 
 /**
- * Convert routine type to operation type..
+ * Convert routine type to operation type.
  */
 #define ECMA_GENERATOR_ROUTINE_TO_OPERATION(type) \
-  ((ecma_iterator_command_type_t) ((type) - ECMA_GENERATOR_PROTOTYPE_ROUTINE_NEXT))
+  ((ecma_iterator_command_type_t) ((type) -ECMA_GENERATOR_PROTOTYPE_ROUTINE_NEXT))
 
-JERRY_STATIC_ASSERT (ECMA_GENERATOR_ROUTINE_TO_OPERATION (ECMA_GENERATOR_PROTOTYPE_ROUTINE_NEXT)
-                     == ECMA_ITERATOR_NEXT,
+JERRY_STATIC_ASSERT (ECMA_GENERATOR_ROUTINE_TO_OPERATION (ECMA_GENERATOR_PROTOTYPE_ROUTINE_NEXT) == ECMA_ITERATOR_NEXT,
                      convert_ecma_generator_routine_next_to_ecma_iterator_next_failed);
 
 JERRY_STATIC_ASSERT (ECMA_GENERATOR_ROUTINE_TO_OPERATION (ECMA_GENERATOR_PROTOTYPE_ROUTINE_THROW)
-                     == ECMA_ITERATOR_THROW,
+                       == ECMA_ITERATOR_THROW,
                      convert_ecma_generator_routine_throw_to_ecma_iterator_throw_failed);
 
 JERRY_STATIC_ASSERT (ECMA_GENERATOR_ROUTINE_TO_OPERATION (ECMA_GENERATOR_PROTOTYPE_ROUTINE_RETURN)
-                     == ECMA_ITERATOR_RETURN,
+                       == ECMA_ITERATOR_RETURN,
                      convert_ecma_generator_routine_return_to_ecma_iterator_return_failed);
 
 /**
@@ -93,12 +91,20 @@ ecma_builtin_generator_prototype_object_do (vm_executable_object_t *generator_ob
   {
     if (generator_object_p->extended_object.u.cls.u2.executable_obj_flags & ECMA_EXECUTABLE_OBJECT_DO_AWAIT_OR_YIELD)
     {
-      ecma_value_t iterator = generator_object_p->frame_ctx.block_result;
+      if (generator_object_p->extended_object.u.cls.u2.executable_obj_flags & ECMA_EXECUTABLE_OBJECT_RUNNING)
+      {
+        return ecma_raise_type_error (ECMA_ERR_GENERATOR_IS_CURRENTLY_UNDER_EXECUTION);
+      }
+
+      ecma_value_t iterator = generator_object_p->iterator;
       ecma_value_t next_method = generator_object_p->frame_ctx.stack_top_p[-1];
 
       bool done = false;
+
+      generator_object_p->extended_object.u.cls.u2.executable_obj_flags |= ECMA_EXECUTABLE_OBJECT_RUNNING;
       ecma_value_t result = ecma_op_iterator_do (resume_mode, iterator, next_method, arg, &done);
       ecma_free_value (arg);
+      generator_object_p->extended_object.u.cls.u2.executable_obj_flags &= (uint8_t) ~ECMA_EXECUTABLE_OBJECT_RUNNING;
 
       if (ECMA_IS_VALUE_ERROR (result))
       {
@@ -120,7 +126,7 @@ ecma_builtin_generator_prototype_object_do (vm_executable_object_t *generator_ob
       }
 
       ECMA_EXECUTABLE_OBJECT_RESUME_EXEC (generator_object_p);
-      generator_object_p->frame_ctx.block_result = ECMA_VALUE_UNDEFINED;
+      generator_object_p->iterator = ECMA_VALUE_UNDEFINED;
 
       JERRY_ASSERT (generator_object_p->frame_ctx.stack_top_p[-1] == ECMA_VALUE_UNDEFINED
                     || ecma_is_value_object (generator_object_p->frame_ctx.stack_top_p[-1]));
@@ -161,9 +167,8 @@ ecma_builtin_generator_prototype_object_do (vm_executable_object_t *generator_ob
 
       if (byte_code_p[-1] == CBC_EXT_YIELD_ITERATOR)
       {
-        ecma_value_t iterator = ecma_op_get_iterator (value,
-                                                      ECMA_VALUE_SYNC_ITERATOR,
-                                                      generator_object_p->frame_ctx.stack_top_p);
+        ecma_value_t iterator =
+          ecma_op_get_iterator (value, ECMA_VALUE_SYNC_ITERATOR, generator_object_p->frame_ctx.stack_top_p);
         ecma_free_value (value);
 
         if (ECMA_IS_VALUE_ERROR (iterator))
@@ -175,7 +180,7 @@ ecma_builtin_generator_prototype_object_do (vm_executable_object_t *generator_ob
 
         ecma_deref_object (ecma_get_object_from_value (iterator));
         generator_object_p->extended_object.u.cls.u2.executable_obj_flags |= ECMA_EXECUTABLE_OBJECT_DO_AWAIT_OR_YIELD;
-        generator_object_p->frame_ctx.block_result = iterator;
+        generator_object_p->iterator = iterator;
 
         if (generator_object_p->frame_ctx.stack_top_p[0] != ECMA_VALUE_UNDEFINED)
         {
@@ -195,11 +200,11 @@ ecma_builtin_generator_prototype_object_do (vm_executable_object_t *generator_ob
 } /* ecma_builtin_generator_prototype_object_do */
 
 /**
-  * Dispatcher of the Generator built-in's routines
-  *
-  * @return ecma value
-  *         Returned value must be freed with ecma_free_value.
-  */
+ * Dispatcher of the Generator built-in's routines
+ *
+ * @return ecma value
+ *         Returned value must be freed with ecma_free_value.
+ */
 ecma_value_t
 ecma_builtin_generator_prototype_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wide routine
                                                                                 *   identifier */
@@ -224,12 +229,12 @@ ecma_builtin_generator_prototype_dispatch_routine (uint8_t builtin_routine_id, /
 
   if (executable_object_p == NULL)
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not a generator object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_GENERATOR_OBJECT);
   }
 
   if (executable_object_p->extended_object.u.cls.u2.executable_obj_flags & ECMA_EXECUTABLE_OBJECT_RUNNING)
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Generator is currently under execution"));
+    return ecma_raise_type_error (ECMA_ERR_GENERATOR_IS_CURRENTLY_UNDER_EXECUTION);
   }
 
   if (executable_object_p->extended_object.u.cls.u2.executable_obj_flags & ECMA_EXECUTABLE_OBJECT_COMPLETED)
@@ -253,5 +258,3 @@ ecma_builtin_generator_prototype_dispatch_routine (uint8_t builtin_routine_id, /
  * @}
  * @}
  */
-
-#endif /* JERRY_ESNEXT */

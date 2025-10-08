@@ -13,16 +13,18 @@
  * limitations under the License.
  */
 
+#include "ecma-eval.h"
+
 #include "ecma-builtins.h"
 #include "ecma-exceptions.h"
-#include "ecma-eval.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-lex-env.h"
+
+#include "jcontext.h"
 #include "js-parser.h"
 #include "vm.h"
-#include "jcontext.h"
 
 /** \addtogroup ecma ECMA
  * @{
@@ -51,8 +53,7 @@ ecma_op_eval (ecma_value_t source_code, /**< source code */
     return ECMA_VALUE_UNDEFINED;
   }
 
-  return ecma_op_eval_chars_buffer ((void *) &source_code,
-                                    parse_opts | ECMA_PARSE_HAS_SOURCE_VALUE);
+  return ecma_op_eval_chars_buffer ((void *) &source_code, parse_opts | ECMA_PARSE_HAS_SOURCE_VALUE);
 } /* ecma_op_eval */
 
 /**
@@ -80,9 +81,7 @@ ecma_op_eval_chars_buffer (void *source_p, /**< source code */
 
   parse_opts |= ECMA_PARSE_EVAL;
 
-#if JERRY_ESNEXT
   ECMA_CLEAR_LOCAL_PARSE_OPTS ();
-#endif /* JERRY_ESNEXT */
 
   ecma_compiled_code_t *bytecode_p = parser_parse_script (source_p, parse_opts, NULL);
 
@@ -92,12 +91,6 @@ ecma_op_eval_chars_buffer (void *source_p, /**< source code */
   }
 
   return vm_run_eval (bytecode_p, parse_opts);
-#else /* !JERRY_PARSER */
-  JERRY_UNUSED (code_p);
-  JERRY_UNUSED (code_buffer_size);
-  JERRY_UNUSED (parse_opts);
-
-  return ecma_raise_syntax_error (ECMA_ERR_MSG ("Source code parsing is disabled"));
 #endif /* JERRY_PARSER */
 } /* ecma_op_eval_chars_buffer */
 

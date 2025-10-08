@@ -21,6 +21,7 @@
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-objects.h"
+
 #include "lit-char-helpers.h"
 
 #if JERRY_BUILTIN_DATE
@@ -35,16 +36,12 @@
 /**
  * Day names
  */
-const char day_names_p[7][3] =
-{
-  "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
-};
+const char day_names_p[7][3] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
 /**
  * Month names
  */
-const char month_names_p[12][3] =
-{
+const char month_names_p[12][3] = {
   "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };
 
@@ -77,17 +74,15 @@ ecma_date_day_from_time (ecma_number_t time) /**< time value */
 static int32_t
 ecma_date_day_from_year (int32_t year) /**< year value */
 {
+  JERRY_ASSERT (fabs (365.0 * (year - 1970) + ((year - 1969) / 4.0) - ((year - 1901) / 100.0) + ((year - 1601) / 400.0))
+                < INT32_MAX);
+
   if (JERRY_LIKELY (year >= 1970))
   {
-    return (int32_t) (365 * (year - 1970)
-                      + ((year - 1969) / 4)
-                      - ((year - 1901) / 100)
-                      + ((year - 1601) / 400));
+    return (int32_t) (365 * (year - 1970) + ((year - 1969) / 4) - ((year - 1901) / 100) + ((year - 1601) / 400));
   }
 
-  return (int32_t) (365 * (year - 1970)
-                    + floor ((year - 1969) / 4.0)
-                    - floor ((year - 1901) / 100.0)
+  return (int32_t) (365 * (year - 1970) + floor ((year - 1969) / 4.0) - floor ((year - 1901) / 100.0)
                     + floor ((year - 1601) / 400.0));
 } /* ecma_date_day_from_year */
 
@@ -102,8 +97,7 @@ ecma_date_day_from_year (int32_t year) /**< year value */
 static int
 ecma_date_days_in_year (int32_t year) /**< year */
 {
-  if (year % 4 != 0
-      || (year % 100 == 0 && (year % 400 != 0)))
+  if (year % 4 != 0 || (year % 100 == 0 && (year % 400 != 0)))
   {
     return ECMA_DATE_DAYS_IN_YEAR;
   }
@@ -129,16 +123,34 @@ ecma_date_in_leap_year (int32_t year) /**< time value */
 /**
  * First days of months in normal and leap years
  */
-static const uint16_t first_day_in_month[2][12] =
-{
-  {
-    0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, /* normal year */
-  }
-  ,
-  {
-    0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335  /* leap year */
-  }
-};
+static const uint16_t first_day_in_month[2][12] = { {
+                                                      0,
+                                                      31,
+                                                      59,
+                                                      90,
+                                                      120,
+                                                      151,
+                                                      181,
+                                                      212,
+                                                      243,
+                                                      273,
+                                                      304,
+                                                      334, /* normal year */
+                                                    },
+                                                    {
+                                                      0,
+                                                      31,
+                                                      60,
+                                                      91,
+                                                      121,
+                                                      152,
+                                                      182,
+                                                      213,
+                                                      244,
+                                                      274,
+                                                      305,
+                                                      335 /* leap year */
+                                                    } };
 
 /**
  * Abstract operation: YearFromTime
@@ -262,10 +274,10 @@ ecma_date_week_day (ecma_number_t time) /**< time value */
  *
  * @return local time zone adjustment
  */
-extern inline ecma_number_t JERRY_ATTR_ALWAYS_INLINE
+extern inline int32_t JERRY_ATTR_ALWAYS_INLINE
 ecma_date_local_time_zone_adjustment (ecma_number_t time) /**< time value */
 {
-  return jerry_port_get_local_time_zone_adjustment (time, true);
+  return jerry_port_local_tza (time);
 } /* ecma_date_local_time_zone_adjustment */
 
 /**
@@ -279,7 +291,7 @@ ecma_date_local_time_zone_adjustment (ecma_number_t time) /**< time value */
 ecma_number_t
 ecma_date_utc (ecma_number_t time) /**< time value */
 {
-  return time - jerry_port_get_local_time_zone_adjustment (time, false);
+  return time - jerry_port_local_tza (time);
 } /* ecma_date_utc */
 
 /**
@@ -383,9 +395,7 @@ ecma_date_make_time (ecma_number_t hour, /**< hour value */
                      ecma_number_t sec, /**< second value */
                      ecma_number_t ms) /**< millisecond value */
 {
-  if (!ecma_number_is_finite (hour)
-      || !ecma_number_is_finite (min)
-      || !ecma_number_is_finite (sec)
+  if (!ecma_number_is_finite (hour) || !ecma_number_is_finite (min) || !ecma_number_is_finite (sec)
       || !ecma_number_is_finite (ms))
   {
     return ecma_number_make_nan ();
@@ -396,10 +406,7 @@ ecma_date_make_time (ecma_number_t hour, /**< hour value */
   ecma_number_t s = ecma_number_trunc (sec);
   ecma_number_t milli = ecma_number_trunc (ms);
 
-  return (ecma_number_t) ((h * ECMA_DATE_MS_PER_HOUR
-                          + m * ECMA_DATE_MS_PER_MINUTE
-                          + s * ECMA_DATE_MS_PER_SECOND
-                          + milli));
+  return h * ECMA_DATE_MS_PER_HOUR + m * ECMA_DATE_MS_PER_MINUTE + s * ECMA_DATE_MS_PER_SECOND + milli;
 } /* ecma_date_make_time */
 
 /**
@@ -416,21 +423,23 @@ ecma_date_make_day (ecma_number_t year, /**< year value */
                     ecma_number_t date) /**< date value */
 {
   /* 1. */
-  if (!ecma_number_is_finite (year)
-      || !ecma_number_is_finite (month)
-      || !ecma_number_is_finite (date)
-      || fabs (year) > INT32_MAX)
+  if (!ecma_number_is_finite (year) || !ecma_number_is_finite (month) || !ecma_number_is_finite (date))
   {
     return ecma_number_make_nan ();
   }
 
   /* 2., 3., 4. */
-  int32_t y = (int32_t) (year);
   ecma_number_t m = ecma_number_trunc (month);
   ecma_number_t dt = ecma_number_trunc (date);
 
   /* 5. */
-  int32_t ym = y + (int32_t) (floor (m / 12));
+  year += (floor (m / 12));
+  if (fabs (year) > ECMA_DATE_YEAR_LIMIT)
+  {
+    return ecma_number_make_nan ();
+  }
+
+  int32_t int_year = (int32_t) year;
 
   /* 6. */
   int32_t mn = (int32_t) fmod (m, 12);
@@ -441,9 +450,8 @@ ecma_date_make_day (ecma_number_t year, /**< year value */
   }
 
   /* 7. */
-  ecma_number_t days = (ecma_date_day_from_year (ym)
-                        + first_day_in_month[ecma_date_in_leap_year (ym)][mn]
-                        + (dt - 1));
+  ecma_number_t days =
+    (ecma_date_day_from_year (int_year) + first_day_in_month[ecma_date_in_leap_year (int_year)][mn] + (dt - 1));
   return days * ECMA_DATE_MS_PER_DAY;
 } /* ecma_date_make_day */
 
@@ -459,8 +467,7 @@ ecma_number_t
 ecma_date_make_date (ecma_number_t day, /**< day value */
                      ecma_number_t time) /**< time value */
 {
-  if (!ecma_number_is_finite (day)
-      || !ecma_number_is_finite (time))
+  if (!ecma_number_is_finite (day) || !ecma_number_is_finite (time))
   {
     return ecma_number_make_nan ();
   }
@@ -479,8 +486,7 @@ ecma_date_make_date (ecma_number_t day, /**< day value */
 ecma_number_t
 ecma_date_time_clip (ecma_number_t time) /**< time value */
 {
-  if (!ecma_number_is_finite (time)
-      || fabs (time) > ECMA_DATE_MAX_VALUE)
+  if (!ecma_number_is_finite (time) || fabs (time) > ECMA_DATE_MAX_VALUE)
   {
     return ecma_number_make_nan ();
   }
@@ -609,7 +615,7 @@ ecma_date_to_string_format (ecma_number_t datetime_number, /**< datetime */
       }
       case LIT_CHAR_LOWERCASE_Z: /* Time zone hours part. */
       {
-        int32_t time_zone = (int32_t) ecma_date_local_time_zone_adjustment (datetime_number);
+        int32_t time_zone = ecma_date_local_time_zone_adjustment (datetime_number);
 
         if (time_zone >= 0)
         {
@@ -629,7 +635,7 @@ ecma_date_to_string_format (ecma_number_t datetime_number, /**< datetime */
       {
         JERRY_ASSERT (*format_p == LIT_CHAR_UPPERCASE_Z); /* Time zone minutes part. */
 
-        int32_t time_zone = (int32_t) ecma_date_local_time_zone_adjustment (datetime_number);
+        int32_t time_zone = ecma_date_local_time_zone_adjustment (datetime_number);
 
         if (time_zone < 0)
         {
@@ -674,14 +680,13 @@ ecma_date_to_string_format (ecma_number_t datetime_number, /**< datetime */
       buffer_p--;
       *buffer_p = (lit_utf8_byte_t) ((number % 10) + (int32_t) LIT_CHAR_0);
       number /= 10;
-    }
-    while (--number_length);
+    } while (--number_length);
   }
 
   JERRY_ASSERT (dest_p <= date_buffer + date_buffer_length);
 
-  return ecma_make_string_value (ecma_new_ecma_string_from_ascii (date_buffer,
-                                                                 (lit_utf8_size_t) (dest_p - date_buffer)));
+  return ecma_make_string_value (
+    ecma_new_ecma_string_from_ascii (date_buffer, (lit_utf8_size_t) (dest_p - date_buffer)));
 } /* ecma_date_to_string_format */
 
 /**

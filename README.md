@@ -2,7 +2,6 @@
 # JerryScript: JavaScript engine for the Internet of Things
 [![License](https://img.shields.io/badge/licence-Apache%202.0-brightgreen.svg?style=flat)](LICENSE)
 [![GitHub Actions Status](https://github.com/jerryscript-project/jerryscript/workflows/JerryScript%20CI/badge.svg)](https://github.com/jerryscript-project/jerryscript/actions)
-[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/ct8reap35u2vooa5/branch/master?svg=true)](https://ci.appveyor.com/project/jerryscript-project/jerryscript/branch/master)
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bhttps%3A%2F%2Fgithub.com%2Fjerryscript-project%2Fjerryscript.svg?type=shield)](https://app.fossa.io/projects/git%2Bhttps%3A%2F%2Fgithub.com%2Fjerryscript-project%2Fjerryscript?ref=badge_shield)
 [![IRC Channel](https://img.shields.io/badge/chat-on%20freenode-brightgreen.svg)](https://kiwiirc.com/client/irc.freenode.net/#jerryscript)
 
@@ -10,7 +9,9 @@ JerryScript is a lightweight JavaScript engine for resource-constrained devices 
 
 Key characteristics of JerryScript:
 * Full ECMAScript 5.1 standard compliance
-* 160K binary size when compiled for ARM Thumb-2
+* ECMAScript 2025 standard compliance is 70%
+  * [Kangax Compatibilty Table](https://compat-table.github.io/compat-table/es2016plus/)
+* 258K binary size when compiled for ARM Thumb-2
 * Heavily optimized for low memory consumption
 * Written in C99 for maximum portability
 * Snapshot support for precompiling JavaScript source code to byte code
@@ -18,14 +19,6 @@ Key characteristics of JerryScript:
 
 Additional information can be found on our [project page](http://jerryscript.net) and [Wiki](https://github.com/jerryscript-project/jerryscript/wiki).
 
-Memory usage and Binary footprint are measured at [here](https://jerryscript-project.github.io/jerryscript-test-results) with real target daily.
-
-The latest results on  **Raspberry Pi 2**:
-
-
-[![Remote Testrunner](https://firebasestorage.googleapis.com/v0/b/jsremote-testrunner.appspot.com/o/status%2Fjerryscript%2Frpi2.svg?alt=media&token=1)](https://jerryscript-project.github.io/jerryscript-test-results/?view=rpi2)
-
-IRC channel: #jerryscript on [freenode](https://freenode.net)
 Mailing list: jerryscript-dev@groups.io, you can subscribe [here](https://groups.io/g/jerryscript-dev) and access the mailing list archive [here](https://groups.io/g/jerryscript-dev/topics).
 
 ## Quick Start
@@ -47,7 +40,17 @@ For additional information see [Getting Started](docs/00.GETTING-STARTED.md).
 - [Configuration](docs/01.CONFIGURATION.md)
 - [API Reference](docs/02.API-REFERENCE.md)
 - [API Example](docs/03.API-EXAMPLE.md)
-- [Internals](docs/04.INTERNALS.md)
+- [Port API](docs/05.PORT-API.md)
+- [Reference Couting](docs/06.REFERENCE-COUNTING.md)
+- [Debugger](docs/07.DEBUGGER.md)
+- [Coding Standards](docs/08.CODING-STANDARDS.md)
+- [Arguments Extension API](docs/09.EXT-REFERENCE-ARG.md)
+- [Property Extension API](docs/10.EXT-REFERENCE-HANDLER.md)
+- [Autorelease Extension API](docs/11.EXT-REFERENCE-AUTORELEASE.md)
+- [Module Extension API](docs/12.EXT-REFERENCE-MODULE.md)
+- [Debugger Transport Interface](docs/13.DEBUGGER-TRANSPORT.md)
+- [Scope Extension API](docs/14.EXT-REFERENCE-HANDLE-SCOPE.md)
+- [Module System](docs/15.MODULE-SYSTEM.md)
 - [Migration Guide](docs/16.MIGRATION-GUIDE.md)
 
 ## Contributing

@@ -14,10 +14,13 @@
  */
 
 #include "ecma-bigint.h"
+
 #include "ecma-big-uint.h"
 #include "ecma-exceptions.h"
+#include "ecma-helpers-number.h"
 #include "ecma-helpers.h"
 #include "ecma-objects.h"
+
 #include "lit-char-helpers.h"
 
 #if JERRY_BUILTIN_BIGINT
@@ -31,7 +34,7 @@
 static ecma_value_t
 ecma_bigint_raise_memory_error (void)
 {
-  return ecma_raise_range_error (ECMA_ERR_MSG ("Cannot allocate memory for a BigInt value"));
+  return ecma_raise_range_error (ECMA_ERR_ALLOCATE_BIGINT_VALUE);
 } /* ecma_bigint_raise_memory_error */
 
 /**
@@ -83,21 +86,10 @@ ecma_bigint_parse_string (const lit_utf8_byte_t *string_p, /**< string represena
 
   if (size >= 3 && string_p[0] == LIT_CHAR_0)
   {
-    if (string_p[1] == LIT_CHAR_LOWERCASE_X || string_p[1] == LIT_CHAR_UPPERCASE_X)
+    radix = lit_char_to_radix (string_p[1]);
+
+    if (radix != 10)
     {
-      radix = 16;
-      string_p += 2;
-      size -= 2;
-    }
-    else if (string_p[1] == LIT_CHAR_LOWERCASE_O || string_p[1] == LIT_CHAR_UPPERCASE_O)
-    {
-      radix = 8;
-      string_p += 2;
-      size -= 2;
-    }
-    else if (string_p[1] == LIT_CHAR_LOWERCASE_B || string_p[1] == LIT_CHAR_UPPERCASE_B)
-    {
-      radix = 2;
       string_p += 2;
       size -= 2;
     }
@@ -170,7 +162,7 @@ ecma_bigint_parse_string (const lit_utf8_byte_t *string_p, /**< string represena
       {
         return ECMA_VALUE_FALSE;
       }
-      return ecma_raise_syntax_error (ECMA_ERR_MSG ("String cannot be converted to BigInt value"));
+      return ecma_raise_syntax_error (ECMA_ERR_STRING_CANNOT_BE_CONVERTED_TO_BIGINT_VALUE);
     }
 
     result_p = ecma_big_uint_mul_digit (result_p, radix, digit);
@@ -179,8 +171,7 @@ ecma_bigint_parse_string (const lit_utf8_byte_t *string_p, /**< string represena
     {
       break;
     }
-  }
-  while (++string_p < string_end_p);
+  } while (++string_p < string_end_p);
 
   if (JERRY_UNLIKELY (result_p == NULL))
   {
@@ -238,7 +229,7 @@ ecma_bigint_to_string (ecma_value_t value, /**< BigInt value */
 
   if (JERRY_UNLIKELY (string_buffer_p == NULL))
   {
-    ecma_raise_range_error (ECMA_ERR_MSG ("Cannot allocate memory for a string representation of a BigInt value"));
+    ecma_raise_range_error (ECMA_ERR_ALLOCATE_BIGINT_STRING);
     return NULL;
   }
 
@@ -259,8 +250,7 @@ ecma_bigint_to_string (ecma_value_t value, /**< BigInt value */
 /**
  * Get the size of zero digits from the result of ecma_bigint_number_to_digits
  */
-#define ECMA_BIGINT_NUMBER_TO_DIGITS_GET_ZERO_SIZE(value) \
-  (((value) & 0xffff) * (uint32_t) sizeof (ecma_bigint_digit_t))
+#define ECMA_BIGINT_NUMBER_TO_DIGITS_GET_ZERO_SIZE(value) (((value) &0xffff) * (uint32_t) sizeof (ecma_bigint_digit_t))
 
 /**
  * Get the number of digits from the result of ecma_bigint_number_to_digits
@@ -292,16 +282,14 @@ static uint32_t
 ecma_bigint_number_to_digits (ecma_number_t number, /**< ecma number */
                               ecma_bigint_digit_t *digits_p) /**< [out] BigInt digits */
 {
-  uint32_t biased_exp;
-  uint64_t fraction;
-
-  ecma_number_unpack (number, NULL, &biased_exp, &fraction);
-
-  if (biased_exp == 0 && fraction == 0)
+  if (ecma_number_is_zero (number))
   {
-    /* Number is zero. */
     return ECMA_BIGINT_NUMBER_TO_DIGITS_SET_DIGITS (0);
   }
+
+  ecma_binary_num_t binary = ecma_number_to_binary (number);
+  uint32_t biased_exp = ecma_number_biased_exp (binary);
+  uint64_t fraction = ecma_number_fraction (binary);
 
   if (biased_exp < ((1 << (ECMA_NUMBER_BIASED_EXP_WIDTH - 1)) - 1))
   {
@@ -382,7 +370,7 @@ ecma_bigint_number_to_bigint (ecma_number_t number) /**< ecma number */
 {
   if (ecma_number_is_nan (number) || ecma_number_is_infinity (number))
   {
-    return ecma_raise_range_error (ECMA_ERR_MSG ("Infinity or NaN cannot be converted to BigInt"));
+    return ecma_raise_range_error (ECMA_ERR_INFINITY_OR_NAN_CANNOT_BE_CONVERTED_TO_BIGINT);
   }
 
   ecma_bigint_digit_t digits[3];
@@ -393,7 +381,7 @@ ecma_bigint_number_to_bigint (ecma_number_t number) /**< ecma number */
 
   if (result & ECMA_BIGINT_NUMBER_TO_DIGITS_HAS_FRACTION)
   {
-    return ecma_raise_range_error (ECMA_ERR_MSG ("Only integer numbers can be converted to BigInt"));
+    return ecma_raise_range_error (ECMA_ERR_ONLY_INTEGER_NUMBERS_CAN_BE_CONVERTED_TO_BIGINT);
   }
 
   uint32_t digits_size = ECMA_BIGINT_NUMBER_TO_DIGITS_GET_DIGITS_SIZE (result);
@@ -483,7 +471,7 @@ ecma_bigint_to_bigint (ecma_value_t value, /**< any value */
   }
   else
   {
-    result = ecma_raise_type_error (ECMA_ERR_MSG ("Value cannot be converted to BigInt"));
+    result = ecma_raise_type_error (ECMA_ERR_VALUE_CANNOT_BE_CONVERTED_TO_BIGINT);
   }
 
   if (free_value)
@@ -618,7 +606,7 @@ ecma_bigint_to_number (ecma_value_t value) /**< BigInt value */
 
   if (biased_exp < (1u << ECMA_NUMBER_BIASED_EXP_WIDTH) - 1)
   {
-    result = ecma_number_pack (sign, biased_exp, fraction);
+    result = ecma_number_create (sign, biased_exp, fraction);
   }
   else
   {
@@ -665,7 +653,7 @@ ecma_bigint_get_bigint (ecma_value_t value, /**< any value */
     ecma_free_value (default_value);
   }
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Cannot convert a BigInt value to a number"));
+  return ecma_raise_type_error (ECMA_ERR_CONVERT_BIGINT_TO_NUMBER);
 } /* ecma_bigint_get_bigint */
 
 /**
@@ -723,7 +711,7 @@ ecma_bigint_create_from_digits (const uint64_t *digits_p, /**< BigInt digits */
 
     result_p[0] = (ecma_bigint_digit_t) digit;
     result_p[1] = (ecma_bigint_digit_t) (digit >> (8 * sizeof (ecma_bigint_digit_t)));
-    result_p+= 2;
+    result_p += 2;
   }
 
   return ecma_make_extended_primitive_value (result_value_p, ECMA_TYPE_BIGINT);
@@ -1052,8 +1040,7 @@ ecma_bigint_compare_to_number (ecma_value_t left_value, /**< left BigInt value *
     {
       return left > right ? left_sign : -left_sign;
     }
-  }
-  while (left_p > left_end_p);
+  } while (left_p > left_end_p);
 
   left_end_p = ECMA_BIGINT_GET_DIGITS (left_value_p, 0);
 
@@ -1307,7 +1294,7 @@ ecma_bigint_div_mod (ecma_value_t left_value, /**< left BigInt value */
 
   if (right_value == ECMA_BIGINT_ZERO)
   {
-    return ecma_raise_range_error (ECMA_ERR_MSG ("BigInt division by zero"));
+    return ecma_raise_range_error (ECMA_ERR_BIGINT_ZERO_DIVISION);
   }
 
   if (left_value == ECMA_BIGINT_ZERO)
@@ -1451,8 +1438,6 @@ ecma_bigint_shift (ecma_value_t left_value, /**< left BigInt value */
   return ecma_make_extended_primitive_value (result_p, ECMA_TYPE_BIGINT);
 } /* ecma_bigint_shift */
 
-#if JERRY_ESNEXT
-
 /**
  * Compute the left value raised to the power of right value
  *
@@ -1474,7 +1459,7 @@ ecma_bigint_pow (ecma_value_t left_value, /**< left BigInt value */
 
   if (right_p->u.bigint_sign_and_size & ECMA_BIGINT_SIGN)
   {
-    return ecma_raise_range_error (ECMA_ERR_MSG ("Negative exponent is not allowed for BigInts"));
+    return ecma_raise_range_error (ECMA_ERR_NEGATIVE_EXPONENT_IS_NOT_ALLOWED_FOR_BIGINTS);
   }
 
   if (left_value == ECMA_BIGINT_ZERO)
@@ -1540,8 +1525,6 @@ ecma_bigint_pow (ecma_value_t left_value, /**< left BigInt value */
 
   return ecma_make_extended_primitive_value (result_p, ECMA_TYPE_BIGINT);
 } /* ecma_bigint_pow */
-
-#endif /* JERRY_ESNEXT */
 
 /**
  * Convert the result to an ecma value
@@ -1613,9 +1596,8 @@ ecma_bigint_and (ecma_value_t left_value, /**< left BigInt value */
   }
 
   /* (-x) & (-y) == ~(x-1) & ~(y-1) == ~((x-1) | (y-1)) == -(((x-1) | (y-1)) + 1) */
-  uint32_t operation_and_options = (ECMA_BIG_UINT_BITWISE_OR
-                                    | ECMA_BIG_UINT_BITWISE_DECREASE_BOTH
-                                    | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
+  uint32_t operation_and_options =
+    (ECMA_BIG_UINT_BITWISE_OR | ECMA_BIG_UINT_BITWISE_DECREASE_BOTH | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
   return ecma_bigint_bitwise_op (operation_and_options, left_p, right_p);
 } /* ecma_bigint_and */
 
@@ -1650,25 +1632,22 @@ ecma_bigint_or (ecma_value_t left_value, /**< left BigInt value */
     }
 
     /* x | (-y) == x | ~(y-1) == ~((y-1) &~ x) == -(((y-1) &~ x) + 1) */
-    uint32_t operation_and_options = (ECMA_BIG_UINT_BITWISE_AND_NOT
-                                      | ECMA_BIG_UINT_BITWISE_DECREASE_LEFT
-                                      | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
+    uint32_t operation_and_options =
+      (ECMA_BIG_UINT_BITWISE_AND_NOT | ECMA_BIG_UINT_BITWISE_DECREASE_LEFT | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
     return ecma_bigint_bitwise_op (operation_and_options, right_p, left_p);
   }
 
   if (!(right_p->u.bigint_sign_and_size & ECMA_BIGINT_SIGN))
   {
     /* (-x) | y == ~(x-1) | y == ~((x-1) &~ y) == -(((x-1) &~ y) + 1) */
-    uint32_t operation_and_options = (ECMA_BIG_UINT_BITWISE_AND_NOT
-                                      | ECMA_BIG_UINT_BITWISE_DECREASE_LEFT
-                                      | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
+    uint32_t operation_and_options =
+      (ECMA_BIG_UINT_BITWISE_AND_NOT | ECMA_BIG_UINT_BITWISE_DECREASE_LEFT | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
     return ecma_bigint_bitwise_op (operation_and_options, left_p, right_p);
   }
 
   /* (-x) | (-y) == ~(x-1) | ~(y-1) == ~((x-1) & (y-1)) = -(((x-1) & (y-1)) + 1) */
-  uint32_t operation_and_options = (ECMA_BIG_UINT_BITWISE_AND
-                                    | ECMA_BIG_UINT_BITWISE_DECREASE_BOTH
-                                    | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
+  uint32_t operation_and_options =
+    (ECMA_BIG_UINT_BITWISE_AND | ECMA_BIG_UINT_BITWISE_DECREASE_BOTH | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
   return ecma_bigint_bitwise_op (operation_and_options, left_p, right_p);
 } /* ecma_bigint_or */
 
@@ -1703,18 +1682,16 @@ ecma_bigint_xor (ecma_value_t left_value, /**< left BigInt value */
     }
 
     /* x ^ (-y) == x ^ ~(y-1) == ~(x ^ (y-1)) == -((x ^ (y-1)) + 1) */
-    uint32_t operation_and_options = (ECMA_BIG_UINT_BITWISE_XOR
-                                      | ECMA_BIG_UINT_BITWISE_DECREASE_RIGHT
-                                      | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
+    uint32_t operation_and_options =
+      (ECMA_BIG_UINT_BITWISE_XOR | ECMA_BIG_UINT_BITWISE_DECREASE_RIGHT | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
     return ecma_bigint_bitwise_op (operation_and_options, left_p, right_p);
   }
 
   if (!(right_p->u.bigint_sign_and_size & ECMA_BIGINT_SIGN))
   {
     /* (-x) | y == ~(x-1) ^ y == ~((x-1) ^ y) == -(((x-1) ^ y) + 1) */
-    uint32_t operation_and_options = (ECMA_BIG_UINT_BITWISE_XOR
-                                      | ECMA_BIG_UINT_BITWISE_DECREASE_LEFT
-                                      | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
+    uint32_t operation_and_options =
+      (ECMA_BIG_UINT_BITWISE_XOR | ECMA_BIG_UINT_BITWISE_DECREASE_LEFT | ECMA_BIG_UINT_BITWISE_INCREASE_RESULT);
     return ecma_bigint_bitwise_op (operation_and_options, left_p, right_p);
   }
 

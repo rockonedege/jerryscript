@@ -13,18 +13,18 @@
  * limitations under the License.
  */
 
+#include "ecma-jobqueue.h"
+
 #include "ecma-async-generator-object.h"
 #include "ecma-function-object.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
-#include "ecma-jobqueue.h"
 #include "ecma-objects.h"
 #include "ecma-promise-object.h"
+
 #include "jcontext.h"
 #include "opcodes.h"
 #include "vm-stack.h"
-
-#if JERRY_ESNEXT
 
 /**
  * Mask for job queue type.
@@ -82,7 +82,8 @@ typedef struct
 /**
  * Initialize the jobqueue.
  */
-void ecma_job_queue_init (void)
+void
+ecma_job_queue_init (void)
 {
   JERRY_CONTEXT (job_queue_head_p) = NULL;
   JERRY_CONTEXT (job_queue_tail_p) = NULL;
@@ -182,8 +183,8 @@ static ecma_value_t
 ecma_process_promise_reaction_job (ecma_job_promise_reaction_t *job_p) /**< the job to be operated */
 {
   /* 2. */
-  JERRY_ASSERT (ecma_object_class_is (ecma_get_object_from_value (job_p->capability),
-                                      ECMA_OBJECT_CLASS_PROMISE_CAPABILITY));
+  JERRY_ASSERT (
+    ecma_object_class_is (ecma_get_object_from_value (job_p->capability), ECMA_OBJECT_CLASS_PROMISE_CAPABILITY));
   ecma_promise_capabality_t *capability_p;
   capability_p = (ecma_promise_capabality_t *) ecma_get_object_from_value (job_p->capability);
 
@@ -191,10 +192,11 @@ ecma_process_promise_reaction_job (ecma_job_promise_reaction_t *job_p) /**< the 
   if (JERRY_UNLIKELY (JERRY_CONTEXT (promise_callback_filters) & JERRY_PROMISE_EVENT_FILTER_REACTION_JOB))
   {
     JERRY_ASSERT (JERRY_CONTEXT (promise_callback) != NULL);
-    JERRY_CONTEXT (promise_callback) (JERRY_PROMISE_EVENT_BEFORE_REACTION_JOB,
-                                      capability_p->header.u.cls.u3.promise,
-                                      ECMA_VALUE_UNDEFINED,
-                                      JERRY_CONTEXT (promise_callback_user_p));
+    JERRY_CONTEXT (promise_callback)
+    (JERRY_PROMISE_EVENT_BEFORE_REACTION_JOB,
+     capability_p->header.u.cls.u3.promise,
+     ECMA_VALUE_UNDEFINED,
+     JERRY_CONTEXT (promise_callback_user_p));
   }
 #endif /* JERRY_PROMISE_CALLBACK */
 
@@ -213,10 +215,8 @@ ecma_process_promise_reaction_job (ecma_job_promise_reaction_t *job_p) /**< the 
   else
   {
     /* 6. */
-    handler_result = ecma_op_function_call (ecma_get_object_from_value (handler),
-                                            ECMA_VALUE_UNDEFINED,
-                                            &(job_p->argument),
-                                            1);
+    handler_result =
+      ecma_op_function_call (ecma_get_object_from_value (handler), ECMA_VALUE_UNDEFINED, &(job_p->argument), 1);
   }
 
   ecma_value_t status;
@@ -249,10 +249,11 @@ ecma_process_promise_reaction_job (ecma_job_promise_reaction_t *job_p) /**< the 
   if (JERRY_UNLIKELY (JERRY_CONTEXT (promise_callback_filters) & JERRY_PROMISE_EVENT_FILTER_REACTION_JOB))
   {
     JERRY_ASSERT (JERRY_CONTEXT (promise_callback) != NULL);
-    JERRY_CONTEXT (promise_callback) (JERRY_PROMISE_EVENT_AFTER_REACTION_JOB,
-                                      capability_p->header.u.cls.u3.promise,
-                                      ECMA_VALUE_UNDEFINED,
-                                      JERRY_CONTEXT (promise_callback_user_p));
+    JERRY_CONTEXT (promise_callback)
+    (JERRY_PROMISE_EVENT_AFTER_REACTION_JOB,
+     capability_p->header.u.cls.u3.promise,
+     ECMA_VALUE_UNDEFINED,
+     JERRY_CONTEXT (promise_callback_user_p));
   }
 #endif /* JERRY_PROMISE_CALLBACK */
 
@@ -281,10 +282,8 @@ ecma_process_promise_async_reaction_job (ecma_job_promise_async_reaction_t *job_
     }
 
     JERRY_ASSERT (JERRY_CONTEXT (promise_callback) != NULL);
-    JERRY_CONTEXT (promise_callback) (type,
-                                      job_p->executable_object,
-                                      job_p->argument,
-                                      JERRY_CONTEXT (promise_callback_user_p));
+    JERRY_CONTEXT (promise_callback)
+    (type, job_p->executable_object, job_p->argument, JERRY_CONTEXT (promise_callback_user_p));
   }
 #endif /* JERRY_PROMISE_CALLBACK */
 
@@ -307,8 +306,8 @@ ecma_process_promise_async_reaction_job (ecma_job_promise_async_reaction_t *job_
     {
       if (ECMA_AWAIT_GET_STATE (executable_object_p) <= ECMA_AWAIT_YIELD_END)
       {
-        JERRY_ASSERT (ecma_is_value_object (executable_object_p->frame_ctx.block_result));
-        executable_object_p->frame_ctx.block_result = ECMA_VALUE_UNDEFINED;
+        JERRY_ASSERT (ecma_is_value_object (executable_object_p->iterator));
+        executable_object_p->iterator = ECMA_VALUE_UNDEFINED;
 
         JERRY_ASSERT (executable_object_p->frame_ctx.stack_top_p[-1] == ECMA_VALUE_UNDEFINED
                       || ecma_is_value_object (executable_object_p->frame_ctx.stack_top_p[-1]));
@@ -349,8 +348,8 @@ ecma_process_promise_async_reaction_job (ecma_job_promise_async_reaction_t *job_
 
     if (ECMA_AWAIT_GET_STATE (executable_object_p) <= ECMA_AWAIT_YIELD_END)
     {
-      JERRY_ASSERT (ecma_is_value_object (executable_object_p->frame_ctx.block_result));
-      executable_object_p->frame_ctx.block_result = ECMA_VALUE_UNDEFINED;
+      JERRY_ASSERT (ecma_is_value_object (executable_object_p->iterator));
+      executable_object_p->iterator = ECMA_VALUE_UNDEFINED;
 
       JERRY_ASSERT (executable_object_p->frame_ctx.stack_top_p[-1] == ECMA_VALUE_UNDEFINED
                     || ecma_is_value_object (executable_object_p->frame_ctx.stack_top_p[-1]));
@@ -385,10 +384,8 @@ free_job:
     }
 
     JERRY_ASSERT (JERRY_CONTEXT (promise_callback) != NULL);
-    JERRY_CONTEXT (promise_callback) (type,
-                                      job_p->executable_object,
-                                      job_p->argument,
-                                      JERRY_CONTEXT (promise_callback_user_p));
+    JERRY_CONTEXT (promise_callback)
+    (type, job_p->executable_object, job_p->argument, JERRY_CONTEXT (promise_callback_user_p));
   }
 #endif /* JERRY_PROMISE_CALLBACK */
 
@@ -494,8 +491,8 @@ ecma_enqueue_promise_async_reaction_job (ecma_value_t executable_object, /**< ex
 {
   ecma_job_promise_async_reaction_t *job_p;
   job_p = (ecma_job_promise_async_reaction_t *) jmem_heap_alloc_block (sizeof (ecma_job_promise_async_reaction_t));
-  job_p->header.next_and_type = (is_rejected ? ECMA_JOB_PROMISE_ASYNC_REACTION_REJECTED
-                                             : ECMA_JOB_PROMISE_ASYNC_REACTION_FULFILLED);
+  job_p->header.next_and_type =
+    (is_rejected ? ECMA_JOB_PROMISE_ASYNC_REACTION_REJECTED : ECMA_JOB_PROMISE_ASYNC_REACTION_FULFILLED);
   job_p->executable_object = ecma_copy_value (executable_object);
   job_p->argument = ecma_copy_value (argument);
 
@@ -638,4 +635,3 @@ ecma_free_all_enqueued_jobs (void)
  * @}
  * @}
  */
-#endif /* JERRY_ESNEXT */

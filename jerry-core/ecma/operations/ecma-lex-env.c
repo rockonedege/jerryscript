@@ -13,15 +13,17 @@
  * limitations under the License.
  */
 
+#include "ecma-lex-env.h"
+
 #include "ecma-builtin-helpers.h"
 #include "ecma-builtins.h"
 #include "ecma-exceptions.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
-#include "ecma-lex-env.h"
 #include "ecma-objects.h"
 #include "ecma-proxy-object.h"
+
 #include "jcontext.h"
 
 /** \addtogroup ecma ECMA
@@ -67,7 +69,6 @@ ecma_get_global_environment (ecma_object_t *global_object_p) /**< global object 
   return ECMA_GET_NON_NULL_POINTER (ecma_object_t, ((ecma_global_object_t *) global_object_p)->global_env_cp);
 } /* ecma_get_global_environment */
 
-#if JERRY_ESNEXT
 /**
  * Create the global lexical block on top of the global environment.
  */
@@ -86,7 +87,6 @@ ecma_create_global_lexical_block (ecma_object_t *global_object_p) /**< global ob
     ecma_deref_object (global_scope_p);
   }
 } /* ecma_create_global_lexical_block */
-#endif /* JERRY_ESNEXT */
 
 /**
  * Raise the appropriate error when setting a binding is failed
@@ -99,7 +99,6 @@ ecma_op_raise_set_binding_error (ecma_property_t *property_p, /**< property */
 {
   JERRY_UNUSED (property_p);
 
-#if JERRY_ESNEXT
   const ecma_property_t expected_bits = (ECMA_PROPERTY_FLAG_DATA | ECMA_PROPERTY_FLAG_ENUMERABLE);
 
   if ((*property_p & expected_bits) == expected_bits)
@@ -108,18 +107,17 @@ ecma_op_raise_set_binding_error (ecma_property_t *property_p, /**< property */
 
     if (JERRY_UNLIKELY (property_value_p->value == ECMA_VALUE_UNINITIALIZED))
     {
-      return ecma_raise_reference_error (ECMA_ERR_MSG (ecma_error_let_const_not_initialized));
+      return ecma_raise_reference_error (ECMA_ERR_LET_CONST_NOT_INITIALIZED);
     }
 
     JERRY_ASSERT (!ecma_is_property_writable (*property_p));
 
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Constant bindings cannot be reassigned"));
+    return ecma_raise_type_error (ECMA_ERR_CONSTANT_BINDINGS_CANNOT_BE_REASSIGNED);
   }
-#endif /* JERRY_ESNEXT */
 
   if (is_strict)
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Binding cannot be set"));
+    return ecma_raise_type_error (ECMA_ERR_BINDING_CANNOT_SET);
   }
   return ECMA_VALUE_EMPTY;
 } /* ecma_op_raise_set_binding_error */
@@ -133,12 +131,8 @@ ecma_op_raise_set_binding_error (ecma_property_t *property_p, /**< property */
 ecma_object_t *
 ecma_get_global_scope (ecma_object_t *global_object_p) /**< global object */
 {
-#if JERRY_ESNEXT
   JERRY_ASSERT (global_object_p != NULL && ecma_builtin_is_global (global_object_p));
   return ECMA_GET_NON_NULL_POINTER (ecma_object_t, ((ecma_global_object_t *) global_object_p)->global_scope_cp);
-#else /* !JERRY_ESNEXT */
-  return ecma_get_global_environment (global_object_p);
-#endif /* !JERRY_ESNEXT */
 } /* ecma_get_global_scope */
 
 /**
@@ -156,23 +150,20 @@ ecma_value_t
 ecma_op_has_binding (ecma_object_t *lex_env_p, /**< lexical environment */
                      ecma_string_t *name_p) /**< argument N */
 {
-  JERRY_ASSERT (lex_env_p != NULL
-                && ecma_is_lexical_environment (lex_env_p));
+  JERRY_ASSERT (lex_env_p != NULL && ecma_is_lexical_environment (lex_env_p));
 
   ecma_lexical_environment_type_t lex_env_type = ecma_get_lex_env_type (lex_env_p);
 
   switch (lex_env_type)
   {
-#if JERRY_ESNEXT
     case ECMA_LEXICAL_ENVIRONMENT_CLASS:
     {
-      if ((lex_env_p->type_flags_refs & ECMA_OBJECT_FLAG_LEXICAL_ENV_HAS_DATA) == 0)
+      if (!ECMA_LEX_ENV_CLASS_IS_MODULE (lex_env_p))
       {
         return ECMA_VALUE_FALSE;
       }
       /* FALLTHRU */
     }
-#endif /* JERRY_ESNEXT */
     case ECMA_LEXICAL_ENVIRONMENT_DECLARATIVE:
     {
       ecma_property_t *property_p = ecma_find_named_property (lex_env_p, name_p);
@@ -204,8 +195,7 @@ ecma_op_create_mutable_binding (ecma_object_t *lex_env_p, /**< lexical environme
                                 ecma_string_t *name_p, /**< argument N */
                                 bool is_deletable) /**< argument D */
 {
-  JERRY_ASSERT (lex_env_p != NULL
-                && ecma_is_lexical_environment (lex_env_p));
+  JERRY_ASSERT (lex_env_p != NULL && ecma_is_lexical_environment (lex_env_p));
   JERRY_ASSERT (name_p != NULL);
 
   if (ecma_get_lex_env_type (lex_env_p) == ECMA_LEXICAL_ENVIRONMENT_DECLARATIVE)
@@ -219,10 +209,7 @@ ecma_op_create_mutable_binding (ecma_object_t *lex_env_p, /**< lexical environme
 
     ecma_property_t *prop_p;
 
-    ecma_create_named_data_property (lex_env_p,
-                                     name_p,
-                                     prop_attributes,
-                                     &prop_p);
+    ecma_create_named_data_property (lex_env_p, name_p, prop_attributes, &prop_p);
     return prop_p;
   }
   else
@@ -259,11 +246,11 @@ ecma_op_create_mutable_binding (ecma_object_t *lex_env_p, /**< lexical environme
 
     const uint32_t flags = ECMA_PROPERTY_ENUMERABLE_WRITABLE | JERRY_PROP_SHOULD_THROW;
 
-    ecma_value_t completion = ecma_builtin_helper_def_prop (binding_obj_p,
-                                                            name_p,
-                                                            ECMA_VALUE_UNDEFINED,
-                                                            is_deletable ? flags | ECMA_PROPERTY_FLAG_CONFIGURABLE
-                                                                         : flags);
+    ecma_value_t completion =
+      ecma_builtin_helper_def_prop (binding_obj_p,
+                                    name_p,
+                                    ECMA_VALUE_UNDEFINED,
+                                    is_deletable ? flags | ECMA_PROPERTY_FLAG_CONFIGURABLE : flags);
 
     if (ECMA_IS_VALUE_ERROR (completion))
     {
@@ -292,22 +279,19 @@ ecma_op_set_mutable_binding (ecma_object_t *lex_env_p, /**< lexical environment 
                              ecma_value_t value, /**< argument V */
                              bool is_strict) /**< argument S */
 {
-  JERRY_ASSERT (lex_env_p != NULL
-                && ecma_is_lexical_environment (lex_env_p));
+  JERRY_ASSERT (lex_env_p != NULL && ecma_is_lexical_environment (lex_env_p));
   JERRY_ASSERT (name_p != NULL);
 
   switch (ecma_get_lex_env_type (lex_env_p))
   {
-#if JERRY_ESNEXT
     case ECMA_LEXICAL_ENVIRONMENT_CLASS:
     {
-      if ((lex_env_p->type_flags_refs & ECMA_OBJECT_FLAG_LEXICAL_ENV_HAS_DATA) == 0)
+      if (!ECMA_LEX_ENV_CLASS_IS_MODULE (lex_env_p))
       {
         return ECMA_VALUE_EMPTY;
       }
       /* FALLTHRU */
     }
-#endif /* JERRY_ESNEXT */
     case ECMA_LEXICAL_ENVIRONMENT_DECLARATIVE:
     {
       ecma_property_t *property_p = ecma_find_named_property (lex_env_p, name_p);
@@ -319,8 +303,7 @@ ecma_op_set_mutable_binding (ecma_object_t *lex_env_p, /**< lexical environment 
       }
 
       JERRY_ASSERT (property_p != NULL && ECMA_PROPERTY_IS_RAW_DATA (*property_p));
-      JERRY_ASSERT (!(*property_p & ECMA_PROPERTY_FLAG_WRITABLE)
-                    || (*property_p & ECMA_PROPERTY_FLAG_DATA));
+      JERRY_ASSERT (!(*property_p & ECMA_PROPERTY_FLAG_WRITABLE) || (*property_p & ECMA_PROPERTY_FLAG_DATA));
 
       if ((*property_p & ECMA_PROPERTY_FLAG_WRITABLE))
       {
@@ -340,10 +323,7 @@ ecma_op_set_mutable_binding (ecma_object_t *lex_env_p, /**< lexical environment 
 
       ecma_object_t *binding_obj_p = ecma_get_lex_env_binding_object (lex_env_p);
 
-      ecma_value_t completion = ecma_op_object_put (binding_obj_p,
-                                                    name_p,
-                                                    value,
-                                                    is_strict);
+      ecma_value_t completion = ecma_op_object_put (binding_obj_p, name_p, value, is_strict);
 
       if (ECMA_IS_VALUE_ERROR (completion))
       {
@@ -369,8 +349,7 @@ ecma_op_get_binding_value (ecma_object_t *lex_env_p, /**< lexical environment */
                            ecma_string_t *name_p, /**< argument N */
                            bool is_strict) /**< argument S */
 {
-  JERRY_ASSERT (lex_env_p != NULL
-                && ecma_is_lexical_environment (lex_env_p));
+  JERRY_ASSERT (lex_env_p != NULL && ecma_is_lexical_environment (lex_env_p));
   JERRY_ASSERT (name_p != NULL);
 
   if (ecma_get_lex_env_type (lex_env_p) == ECMA_LEXICAL_ENVIRONMENT_DECLARATIVE)
@@ -396,7 +375,7 @@ ecma_op_get_binding_value (ecma_object_t *lex_env_p, /**< lexical environment */
     {
       if (is_strict)
       {
-        result = ecma_raise_reference_error (ECMA_ERR_MSG ("Binding does not exist or is uninitialised"));
+        result = ecma_raise_reference_error (ECMA_ERR_BINDING_NOT_EXIST_OR_UNINITIALIZED);
       }
       else
       {
@@ -421,8 +400,7 @@ ecma_value_t
 ecma_op_delete_binding (ecma_object_t *lex_env_p, /**< lexical environment */
                         ecma_string_t *name_p) /**< argument N */
 {
-  JERRY_ASSERT (lex_env_p != NULL
-                && ecma_is_lexical_environment (lex_env_p));
+  JERRY_ASSERT (lex_env_p != NULL && ecma_is_lexical_environment (lex_env_p));
   JERRY_ASSERT (name_p != NULL);
 
   if (ecma_get_lex_env_type (lex_env_p) == ECMA_LEXICAL_ENVIRONMENT_DECLARATIVE)
@@ -473,8 +451,7 @@ ecma_op_delete_binding (ecma_object_t *lex_env_p, /**< lexical environment */
 ecma_value_t
 ecma_op_implicit_this_value (ecma_object_t *lex_env_p) /**< lexical environment */
 {
-  JERRY_ASSERT (lex_env_p != NULL
-                && ecma_is_lexical_environment (lex_env_p));
+  JERRY_ASSERT (lex_env_p != NULL && ecma_is_lexical_environment (lex_env_p));
 
   if (ecma_get_lex_env_type (lex_env_p) == ECMA_LEXICAL_ENVIRONMENT_DECLARATIVE)
   {
@@ -501,23 +478,18 @@ ecma_op_create_immutable_binding (ecma_object_t *lex_env_p, /**< lexical environ
                                   ecma_string_t *name_p, /**< argument N */
                                   ecma_value_t value) /**< argument V */
 {
-  JERRY_ASSERT (lex_env_p != NULL
-                && ecma_is_lexical_environment (lex_env_p));
+  JERRY_ASSERT (lex_env_p != NULL && ecma_is_lexical_environment (lex_env_p));
   JERRY_ASSERT (ecma_get_lex_env_type (lex_env_p) == ECMA_LEXICAL_ENVIRONMENT_DECLARATIVE);
 
   /*
    * Warning:
    *         Whether immutable bindings are deletable seems not to be defined by ECMA v5.
    */
-  ecma_property_value_t *prop_value_p = ecma_create_named_data_property (lex_env_p,
-                                                                         name_p,
-                                                                         ECMA_PROPERTY_FIXED,
-                                                                         NULL);
+  ecma_property_value_t *prop_value_p = ecma_create_named_data_property (lex_env_p, name_p, ECMA_PROPERTY_FIXED, NULL);
 
   prop_value_p->value = ecma_copy_value_if_not_object (value);
 } /* ecma_op_create_immutable_binding */
 
-#if JERRY_ESNEXT
 /**
  * InitializeBinding operation.
  *
@@ -528,8 +500,7 @@ ecma_op_initialize_binding (ecma_object_t *lex_env_p, /**< lexical environment *
                             ecma_string_t *name_p, /**< argument N */
                             ecma_value_t value) /**< argument V */
 {
-  JERRY_ASSERT (lex_env_p != NULL
-                && ecma_is_lexical_environment (lex_env_p));
+  JERRY_ASSERT (lex_env_p != NULL && ecma_is_lexical_environment (lex_env_p));
   JERRY_ASSERT (ecma_get_lex_env_type (lex_env_p) == ECMA_LEXICAL_ENVIRONMENT_DECLARATIVE);
 
   ecma_property_t *prop_p = ecma_find_named_property (lex_env_p, name_p);
@@ -595,9 +566,15 @@ ecma_op_get_environment_record (ecma_object_t *lex_env_p) /**< lexical environme
       }
     }
 
-    JERRY_ASSERT (lex_env_p->u2.outer_reference_cp != JMEM_CP_NULL);
+    if (lex_env_p->u2.outer_reference_cp == JMEM_CP_NULL)
+    {
+      break;
+    }
+
     lex_env_p = ECMA_GET_NON_NULL_POINTER (ecma_object_t, lex_env_p->u2.outer_reference_cp);
   }
+
+  return NULL;
 } /* ecma_op_get_environment_record */
 
 /**
@@ -652,16 +629,13 @@ ecma_op_get_this_binding (ecma_object_t *lex_env_p) /**< lexical environment */
 
   if (this_value == ECMA_VALUE_UNINITIALIZED)
   {
-    return ecma_raise_reference_error (ECMA_ERR_MSG ("Must call super constructor in derived class before "
-                                                     "accessing 'this' or returning from it"));
+    return ecma_raise_reference_error (ECMA_ERR_CALL_SUPER_CONSTRUCTOR_DERIVED_CLASS_BEFORE_THIS);
   }
 
   ecma_ref_object (ecma_get_object_from_value (this_value));
 
   return this_value;
 } /* ecma_op_get_this_binding */
-
-#endif /* JERRY_ESNEXT */
 
 /**
  * @}

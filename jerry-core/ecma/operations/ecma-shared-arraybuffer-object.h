@@ -18,8 +18,6 @@
 
 #include "ecma-globals.h"
 
-#if JERRY_BUILTIN_SHAREDARRAYBUFFER
-
 /** \addtogroup ecma ECMA
  * @{
  *
@@ -27,23 +25,17 @@
  * @{
  */
 
-ecma_value_t
-ecma_op_create_shared_arraybuffer_object (const ecma_value_t *, uint32_t);
+#if JERRY_BUILTIN_SHAREDARRAYBUFFER
+
+ecma_value_t ecma_op_create_shared_arraybuffer_object (const ecma_value_t *, uint32_t);
 
 /**
  * Helper functions for SharedArrayBuffer.
  */
-ecma_object_t *
-ecma_shared_arraybuffer_new_object (uint32_t lengh);
-ecma_object_t *
-ecma_shared_arraybuffer_new_object_external (uint32_t length,
-                                             void *buffer_p,
-                                             jerry_value_free_callback_t free_cb);
+ecma_object_t *ecma_shared_arraybuffer_new_object (uint32_t lengh);
 #endif /* JERRY_BUILTIN_SHAREDARRAYBUFFER */
-bool
-ecma_is_shared_arraybuffer (ecma_value_t val);
-bool
-ecma_object_is_shared_arraybuffer (ecma_object_t *val);
+bool ecma_is_shared_arraybuffer (ecma_value_t val);
+bool ecma_object_is_shared_arraybuffer (ecma_object_t *val);
 
 /**
  * @}

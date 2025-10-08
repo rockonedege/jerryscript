@@ -13,11 +13,13 @@
  * limitations under the License.
  */
 
-#include "ecma-alloc.h"
-#include "ecma-bigint.h"
-#include "ecma-big-uint.h"
 #include "ecma-literal-storage.h"
+
+#include "ecma-alloc.h"
+#include "ecma-big-uint.h"
+#include "ecma-bigint.h"
 #include "ecma-helpers.h"
+
 #include "jcontext.h"
 
 /** \addtogroup ecma ECMA
@@ -27,7 +29,6 @@
  * @{
  */
 
-#if JERRY_ESNEXT
 /**
  * Free symbol list
  */
@@ -42,8 +43,7 @@ ecma_free_symbol_list (jmem_cpointer_t symbol_list_cp) /**< symbol list */
     {
       if (symbol_list_p->values[i] != JMEM_CP_NULL)
       {
-        ecma_string_t *string_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_string_t,
-                                                                symbol_list_p->values[i]);
+        ecma_string_t *string_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_string_t, symbol_list_p->values[i]);
 
         JERRY_ASSERT (ECMA_STRING_IS_REF_EQUALS_TO_ONE (string_p));
         ecma_deref_ecma_string (string_p);
@@ -55,7 +55,6 @@ ecma_free_symbol_list (jmem_cpointer_t symbol_list_cp) /**< symbol list */
     symbol_list_cp = next_item_cp;
   }
 } /* ecma_free_symbol_list */
-#endif /* JERRY_ESNEXT */
 
 /**
  * Free string list
@@ -71,8 +70,7 @@ ecma_free_string_list (jmem_cpointer_t string_list_cp) /**< string list */
     {
       if (string_list_p->values[i] != JMEM_CP_NULL)
       {
-        ecma_string_t *string_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_string_t,
-                                                                string_list_p->values[i]);
+        ecma_string_t *string_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_string_t, string_list_p->values[i]);
 
         JERRY_ASSERT (ECMA_STRING_IS_REF_EQUALS_TO_ONE (string_p));
         ecma_destroy_ecma_string (string_p);
@@ -93,8 +91,7 @@ ecma_free_number_list (jmem_cpointer_t number_list_cp) /**< number list */
 {
   while (number_list_cp != JMEM_CP_NULL)
   {
-    ecma_lit_storage_item_t *number_list_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_lit_storage_item_t,
-                                                                           number_list_cp);
+    ecma_lit_storage_item_t *number_list_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_lit_storage_item_t, number_list_cp);
 
     for (int i = 0; i < ECMA_LIT_STORAGE_VALUE_COUNT; i++)
     {
@@ -120,15 +117,14 @@ ecma_free_bigint_list (jmem_cpointer_t bigint_list_cp) /**< bigint list */
 {
   while (bigint_list_cp != JMEM_CP_NULL)
   {
-    ecma_lit_storage_item_t *bigint_list_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_lit_storage_item_t,
-                                                                           bigint_list_cp);
+    ecma_lit_storage_item_t *bigint_list_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_lit_storage_item_t, bigint_list_cp);
 
     for (int i = 0; i < ECMA_LIT_STORAGE_VALUE_COUNT; i++)
     {
       if (bigint_list_p->values[i] != JMEM_CP_NULL)
       {
-        ecma_extended_primitive_t *bigint_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_extended_primitive_t,
-                                                                            bigint_list_p->values[i]);
+        ecma_extended_primitive_t *bigint_p =
+          JMEM_CP_GET_NON_NULL_POINTER (ecma_extended_primitive_t, bigint_list_p->values[i]);
         JERRY_ASSERT (ECMA_EXTENDED_PRIMITIVE_IS_REF_EQUALS_TO_ONE (bigint_p));
         ecma_deref_bigint (bigint_p);
       }
@@ -148,9 +144,7 @@ ecma_free_bigint_list (jmem_cpointer_t bigint_list_cp) /**< bigint list */
 void
 ecma_finalize_lit_storage (void)
 {
-#if JERRY_ESNEXT
   ecma_free_symbol_list (JERRY_CONTEXT (symbol_list_first_cp));
-#endif /* JERRY_ESNEXT */
   ecma_free_string_list (JERRY_CONTEXT (string_list_first_cp));
   ecma_free_number_list (JERRY_CONTEXT (number_list_first_cp));
 #if JERRY_BUILTIN_BIGINT
@@ -168,8 +162,8 @@ ecma_find_or_create_literal_string (const lit_utf8_byte_t *chars_p, /**< string 
                                     lit_utf8_size_t size, /**< size of the string */
                                     bool is_ascii) /**< encode of the string */
 {
-  ecma_string_t *string_p = (is_ascii ? ecma_new_ecma_string_from_ascii (chars_p, size)
-                                      : ecma_new_ecma_string_from_utf8 (chars_p, size));
+  ecma_string_t *string_p =
+    (is_ascii ? ecma_new_ecma_string_from_ascii (chars_p, size) : ecma_new_ecma_string_from_utf8 (chars_p, size));
 
   if (ECMA_IS_DIRECT_STRING (string_p))
   {
@@ -194,8 +188,7 @@ ecma_find_or_create_literal_string (const lit_utf8_byte_t *chars_p, /**< string 
       }
       else
       {
-        ecma_string_t *value_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_string_t,
-                                                               string_list_p->values[i]);
+        ecma_string_t *value_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_string_t, string_list_p->values[i]);
 
         if (ecma_compare_ecma_strings (string_p, value_p))
         {
@@ -256,8 +249,7 @@ ecma_find_or_create_literal_number (ecma_number_t number_arg) /**< number to be 
 
   while (number_list_cp != JMEM_CP_NULL)
   {
-    ecma_lit_storage_item_t *number_list_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_lit_storage_item_t,
-                                                                           number_list_cp);
+    ecma_lit_storage_item_t *number_list_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_lit_storage_item_t, number_list_cp);
 
     for (int i = 0; i < ECMA_LIT_STORAGE_VALUE_COUNT; i++)
     {
@@ -270,8 +262,7 @@ ecma_find_or_create_literal_number (ecma_number_t number_arg) /**< number to be 
       }
       else
       {
-        ecma_number_t *number_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_number_t,
-                                                                number_list_p->values[i]);
+        ecma_number_t *number_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_number_t, number_list_p->values[i]);
 
         if (*number_p == number_arg)
         {
@@ -330,8 +321,7 @@ ecma_find_or_create_literal_bigint (ecma_value_t bigint) /**< bigint to be searc
 
   while (bigint_list_cp != JMEM_CP_NULL)
   {
-    ecma_lit_storage_item_t *bigint_list_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_lit_storage_item_t,
-                                                                           bigint_list_cp);
+    ecma_lit_storage_item_t *bigint_list_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_lit_storage_item_t, bigint_list_cp);
 
     for (int i = 0; i < ECMA_LIT_STORAGE_VALUE_COUNT; i++)
     {
@@ -344,8 +334,8 @@ ecma_find_or_create_literal_bigint (ecma_value_t bigint) /**< bigint to be searc
       }
       else
       {
-        ecma_extended_primitive_t *other_bigint_p = JMEM_CP_GET_NON_NULL_POINTER (ecma_extended_primitive_t,
-                                                                                  bigint_list_p->values[i]);
+        ecma_extended_primitive_t *other_bigint_p =
+          JMEM_CP_GET_NON_NULL_POINTER (ecma_extended_primitive_t, bigint_list_p->values[i]);
         ecma_value_t other_bigint = ecma_make_extended_primitive_value (other_bigint_p, ECMA_TYPE_BIGINT);
 
         if (ecma_bigint_is_equal_to_bigint (bigint, other_bigint))
@@ -417,8 +407,9 @@ ecma_find_or_create_literal_bigint (ecma_value_t bigint) /**< bigint to be searc
 /**
  * Append the value at the end of the appropriate list if it is not present there.
  */
-void ecma_save_literals_append_value (ecma_value_t value, /**< value to be appended */
-                                      ecma_collection_t *lit_pool_p) /**< list of known values */
+void
+ecma_save_literals_append_value (ecma_value_t value, /**< value to be appended */
+                                 ecma_collection_t *lit_pool_p) /**< list of known values */
 {
   /* Unlike direct numbers, direct strings are converted to character literals. */
   if (!ecma_is_value_string (value)
@@ -498,11 +489,9 @@ ecma_save_literals_add_compiled_code (const ecma_compiled_code_t *compiled_code_
 
   for (uint32_t i = const_literal_end; i < literal_end; i++)
   {
-    ecma_compiled_code_t *bytecode_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t,
-                                                                        literal_p[i]);
+    ecma_compiled_code_t *bytecode_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t, literal_p[i]);
 
-    if (CBC_IS_FUNCTION (bytecode_p->status_flags)
-        && bytecode_p != compiled_code_p)
+    if (CBC_IS_FUNCTION (bytecode_p->status_flags) && bytecode_p != compiled_code_p)
     {
       ecma_save_literals_add_compiled_code (bytecode_p, lit_pool_p);
     }
@@ -640,7 +629,7 @@ ecma_save_literals_for_snapshot (ecma_collection_t *lit_pool_p, /**< list of kno
 
       *(uint16_t *) destination_p = (uint16_t) length;
 
-      ecma_string_to_utf8_bytes (string_p, destination_p + sizeof (uint16_t), length);
+      ecma_string_to_cesu8_bytes (string_p, destination_p + sizeof (uint16_t), length);
 
       length = JERRY_ALIGNUP (sizeof (uint16_t) + length, JERRY_SNAPSHOT_LITERAL_ALIGNMENT);
     }
@@ -690,7 +679,7 @@ ecma_snapshot_get_literal (const uint8_t *literal_base_p, /**< literal start */
 
     if (bigint_p == NULL)
     {
-      jerry_fatal (ERR_OUT_OF_MEMORY);
+      jerry_fatal (JERRY_FATAL_OUT_OF_MEMORY);
     }
 
     /* Only the sign bit can differ. */
@@ -711,7 +700,7 @@ ecma_snapshot_get_literal (const uint8_t *literal_base_p, /**< literal start */
  * Compute the start of the serializable ecma-values of the bytecode
  * Related values:
  *  - function argument names, if CBC_CODE_FLAGS_MAPPED_ARGUMENTS_NEEDED is present
- *  - function name, if CBC_CODE_FLAGS_CLASS_CONSTRUCTOR is not present and ES.next profile is enabled
+ *  - function name, if CBC_CODE_FLAGS_CLASS_CONSTRUCTOR is not present and es.next profile is enabled
  *
  * @return pointer to the beginning of the serializable ecma-values
  */
@@ -736,13 +725,11 @@ ecma_snapshot_resolve_serializable_values (const ecma_compiled_code_t *compiled_
     base_p -= argument_end;
   }
 
-#if JERRY_ESNEXT
   /* function name */
   if (CBC_FUNCTION_GET_TYPE (compiled_code_p->status_flags) != CBC_FUNCTION_CONSTRUCTOR)
   {
     base_p--;
   }
-#endif /* JERRY_ESNEXT */
 
   return base_p;
 } /* ecma_snapshot_resolve_serializable_values */

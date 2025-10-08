@@ -13,16 +13,18 @@
  * limitations under the License.
  */
 
+#include "ecma-string-object.h"
+
 #include "ecma-alloc.h"
 #include "ecma-builtins.h"
 #include "ecma-exceptions.h"
+#include "ecma-function-object.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
-#include "ecma-objects.h"
 #include "ecma-objects-general.h"
-#include "ecma-string-object.h"
-#include "ecma-function-object.h"
+#include "ecma-objects.h"
+
 #include "jcontext.h"
 
 /** \addtogroup ecma ECMA
@@ -45,8 +47,7 @@ ecma_op_create_string_object (const ecma_value_t *arguments_list_p, /**< list of
                                                                          are passed to String constructor */
                               uint32_t arguments_list_len) /**< length of the arguments' list */
 {
-  JERRY_ASSERT (arguments_list_len == 0
-                || arguments_list_p != NULL);
+  JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
   ecma_value_t prim_value = ecma_make_magic_string_value (LIT_MAGIC_STRING__EMPTY);
 
@@ -69,7 +70,7 @@ ecma_op_create_string_object (const ecma_value_t *arguments_list_p, /**< list of
   proto_id = ECMA_BUILTIN_ID_OBJECT_PROTOTYPE;
 #endif /* JERRY_BUILTIN_STRING */
   ecma_object_t *prototype_obj_p = ecma_builtin_get (proto_id);
-#if JERRY_ESNEXT
+
   ecma_object_t *new_target = JERRY_CONTEXT (current_new_target_p);
   if (new_target)
   {
@@ -79,55 +80,58 @@ ecma_op_create_string_object (const ecma_value_t *arguments_list_p, /**< list of
       return ECMA_VALUE_ERROR;
     }
   }
-#endif /* JERRY_ESNEXT */
-  ecma_object_t *object_p = ecma_create_object (prototype_obj_p,
-                                                sizeof (ecma_extended_object_t),
-                                                ECMA_OBJECT_TYPE_CLASS);
+
+  ecma_object_t *object_p =
+    ecma_create_object (prototype_obj_p, sizeof (ecma_extended_object_t), ECMA_OBJECT_TYPE_CLASS);
 
   ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) object_p;
   ext_object_p->u.cls.type = ECMA_OBJECT_CLASS_STRING;
   ext_object_p->u.cls.u3.value = prim_value;
 
-#if JERRY_ESNEXT
   if (new_target)
   {
     ecma_deref_object (prototype_obj_p);
   }
-#endif /* JERRY_ESNEXT */
+
   return ecma_make_object_value (object_p);
 } /* ecma_op_create_string_object */
 
 /**
  * List names of a String object's lazy instantiated properties
- *
- * @return string values collection
  */
 void
 ecma_op_string_list_lazy_property_names (ecma_object_t *obj_p, /**< a String object */
                                          ecma_collection_t *prop_names_p, /**< prop name collection */
-                                         ecma_property_counter_t *prop_counter_p)  /**< prop counter */
+                                         ecma_property_counter_t *prop_counter_p, /**< property counters */
+                                         jerry_property_filter_t filter) /**< property name filter options */
 {
   JERRY_ASSERT (ecma_get_object_base_type (obj_p) == ECMA_OBJECT_BASE_TYPE_CLASS);
 
-  ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) obj_p;
-  JERRY_ASSERT (ext_object_p->u.cls.type == ECMA_OBJECT_CLASS_STRING);
-
-  ecma_string_t *prim_value_str_p = ecma_get_string_from_value (ext_object_p->u.cls.u3.value);
-
-  lit_utf8_size_t length = ecma_string_get_length (prim_value_str_p);
-
-  for (lit_utf8_size_t i = 0; i < length; i++)
+  if (!(filter & JERRY_PROPERTY_FILTER_EXCLUDE_INTEGER_INDICES))
   {
-    ecma_string_t *name_p = ecma_new_ecma_string_from_uint32 (i);
+    ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) obj_p;
+    JERRY_ASSERT (ext_object_p->u.cls.type == ECMA_OBJECT_CLASS_STRING);
 
-    /* the properties are enumerable (ECMA-262 v5, 15.5.5.2.9) */
-    ecma_collection_push_back (prop_names_p, ecma_make_string_value (name_p));
+    ecma_string_t *prim_value_str_p = ecma_get_string_from_value (ext_object_p->u.cls.u3.value);
+
+    lit_utf8_size_t length = ecma_string_get_length (prim_value_str_p);
+
+    for (lit_utf8_size_t i = 0; i < length; i++)
+    {
+      ecma_string_t *name_p = ecma_new_ecma_string_from_uint32 (i);
+
+      /* the properties are enumerable (ECMA-262 v5, 15.5.5.2.9) */
+      ecma_collection_push_back (prop_names_p, ecma_make_string_value (name_p));
+    }
+
+    prop_counter_p->array_index_named_props += length;
   }
 
-  prop_counter_p->array_index_named_props += length;
-
-  ecma_collection_push_back (prop_names_p, ecma_make_magic_string_value (LIT_MAGIC_STRING_LENGTH));
-  prop_counter_p->string_named_props++;
+  if (!(filter & JERRY_PROPERTY_FILTER_EXCLUDE_STRINGS))
+  {
+    ecma_collection_push_back (prop_names_p, ecma_make_magic_string_value (LIT_MAGIC_STRING_LENGTH));
+    prop_counter_p->string_named_props++;
+  }
 } /* ecma_op_string_list_lazy_property_names */
 
 /**

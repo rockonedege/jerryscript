@@ -13,9 +13,9 @@
  * limitations under the License.
  */
 
-#include "jerryscript.h"
 #include "jerryscript-port.h"
-#include "jerryscript-port-default.h"
+#include "jerryscript.h"
+
 #include "test-common.h"
 
 typedef struct
@@ -26,8 +26,14 @@ typedef struct
   bool is_async;
 } test_entry_t;
 
-#define ENTRY(TYPE, VALUE) { TYPE, VALUE, true, false }
-#define ENTRY_IF(TYPE, VALUE, FEATURE, ASYNC) { TYPE, VALUE, jerry_is_feature_enabled (FEATURE), ASYNC }
+#define ENTRY(TYPE, VALUE)   \
+  {                          \
+    TYPE, VALUE, true, false \
+  }
+#define ENTRY_IF(TYPE, VALUE, FEATURE, ASYNC)           \
+  {                                                     \
+    TYPE, VALUE, jerry_feature_enabled (FEATURE), ASYNC \
+  }
 #define EVALUATE(BUFF) (jerry_eval ((BUFF), sizeof ((BUFF)) - 1, JERRY_PARSE_NO_OPTS))
 static jerry_value_t
 test_ext_function (const jerry_call_info_t *call_info_p, /**< call information */
@@ -37,7 +43,7 @@ test_ext_function (const jerry_call_info_t *call_info_p, /**< call information *
   (void) call_info_p;
   (void) args_p;
   (void) args_cnt;
-  return jerry_create_boolean (true);
+  return jerry_boolean (true);
 } /* test_ext_function */
 
 int
@@ -59,17 +65,16 @@ main (void)
   const jerry_char_t simple_function[] = "function f() {}; f";
   const jerry_char_t bound_function[] = "function f() {}; f.bind(1,2)";
 
-  test_entry_t entries[] =
-  {
-    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_create_number (-33.0)),
-    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_create_boolean (true)),
-    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_create_undefined ()),
-    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_create_null ()),
-    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_create_string ((const jerry_char_t *) "foo")),
-    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_create_error (JERRY_ERROR_TYPE, (const jerry_char_t *) "error")),
+  test_entry_t entries[] = {
+    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_number (-33.0)),
+    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_boolean (true)),
+    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_undefined ()),
+    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_null ()),
+    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_string_sz ("foo")),
+    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_throw_sz (JERRY_ERROR_TYPE, "error")),
 
-    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_create_object ()),
-    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_create_array (10)),
+    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_object ()),
+    ENTRY (JERRY_FUNCTION_TYPE_NONE, jerry_array (10)),
 
     ENTRY_IF (JERRY_FUNCTION_TYPE_ARROW, EVALUATE (arrow_function), JERRY_FEATURE_SYMBOL, false),
     ENTRY_IF (JERRY_FUNCTION_TYPE_ARROW, EVALUATE (async_arrow_function), JERRY_FEATURE_SYMBOL, true),
@@ -79,18 +84,18 @@ main (void)
     ENTRY (JERRY_FUNCTION_TYPE_GENERIC, EVALUATE (builtin_function)),
     ENTRY (JERRY_FUNCTION_TYPE_GENERIC, EVALUATE (simple_function)),
     ENTRY (JERRY_FUNCTION_TYPE_BOUND, EVALUATE (bound_function)),
-    ENTRY (JERRY_FUNCTION_TYPE_GENERIC, jerry_create_external_function (test_ext_function)),
+    ENTRY (JERRY_FUNCTION_TYPE_GENERIC, jerry_function_external (test_ext_function)),
     ENTRY (JERRY_FUNCTION_TYPE_ACCESSOR, EVALUATE (getter_function)),
     ENTRY (JERRY_FUNCTION_TYPE_ACCESSOR, EVALUATE (setter_function)),
   };
 
   for (size_t idx = 0; idx < sizeof (entries) / sizeof (entries[0]); idx++)
   {
-    jerry_function_type_t type_info = jerry_function_get_type (entries[idx].value);
+    jerry_function_type_t type_info = jerry_function_type (entries[idx].value);
     TEST_ASSERT (!entries[idx].active
                  || (type_info == entries[idx].type_info
                      && jerry_value_is_async_function (entries[idx].value) == entries[idx].is_async));
-    jerry_release_value (entries[idx].value);
+    jerry_value_free (entries[idx].value);
   }
 
   jerry_cleanup ();

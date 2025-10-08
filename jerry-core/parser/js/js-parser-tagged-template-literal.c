@@ -14,14 +14,16 @@
  */
 
 #include "js-parser-tagged-template-literal.h"
-#include "js-lexer.h"
+
 #include "ecma-array-object.h"
 #include "ecma-builtin-helpers.h"
 #include "ecma-gc.h"
 #include "ecma-helpers.h"
 #include "ecma-objects.h"
 
-/* \addtogroup parser Parser
+#include "js-lexer.h"
+
+/** \addtogroup parser Parser
  * @{
  *
  * \addtogroup jsparser JavaScript
@@ -31,7 +33,6 @@
  * @{
  */
 
-#if JERRY_ESNEXT
 /**
  * Append the cooked and raw string to the corresponding array
  */
@@ -58,15 +59,13 @@ parser_tagged_template_literal_append_strings (parser_context_t *context_p, /**<
   }
 
   uint8_t local_byte_array[LEXER_MAX_LITERAL_LOCAL_BUFFER_SIZE];
-  const uint8_t *source_p = lexer_convert_literal_to_chars (context_p,
-                                                            &context_p->token.lit_location,
-                                                            local_byte_array,
-                                                            LEXER_STRING_NO_OPTS);
+  const uint8_t *source_p =
+    lexer_convert_literal_to_chars (context_p, &context_p->token.lit_location, local_byte_array, LEXER_STRING_NO_OPTS);
 
   ecma_string_t *raw_str_p;
-  ecma_string_t *cooked_str_p = ((lit_loc_p->status_flags & LEXER_FLAG_ASCII)
-                                  ? ecma_new_ecma_string_from_ascii (source_p, lit_loc_p->length)
-                                  : ecma_new_ecma_string_from_utf8 (source_p, lit_loc_p->length));
+  ecma_string_t *cooked_str_p =
+    ((lit_loc_p->status_flags & LEXER_FLAG_ASCII) ? ecma_new_ecma_string_from_ascii (source_p, lit_loc_p->length)
+                                                  : ecma_new_ecma_string_from_utf8 (source_p, lit_loc_p->length));
 
   parser_free_allocated_buffer (context_p);
 
@@ -74,14 +73,12 @@ parser_tagged_template_literal_append_strings (parser_context_t *context_p, /**<
   {
     context_p->source_p = context_p->token.lit_location.char_p - 1;
     lexer_parse_string (context_p, LEXER_STRING_RAW);
-    source_p = lexer_convert_literal_to_chars (context_p,
-                                               &context_p->token.lit_location,
-                                               local_byte_array,
-                                               LEXER_STRING_RAW);
+    source_p =
+      lexer_convert_literal_to_chars (context_p, &context_p->token.lit_location, local_byte_array, LEXER_STRING_RAW);
 
-    raw_str_p = ((lit_loc_p->status_flags & LEXER_FLAG_ASCII)
-                  ? ecma_new_ecma_string_from_ascii (source_p, lit_loc_p->length)
-                  : ecma_new_ecma_string_from_utf8 (source_p, lit_loc_p->length));
+    raw_str_p =
+      ((lit_loc_p->status_flags & LEXER_FLAG_ASCII) ? ecma_new_ecma_string_from_ascii (source_p, lit_loc_p->length)
+                                                    : ecma_new_ecma_string_from_utf8 (source_p, lit_loc_p->length));
 
     parser_free_allocated_buffer (context_p);
   }
@@ -138,7 +135,7 @@ parser_new_tagged_template_literal (ecma_object_t **raw_strings_p) /**< [out] ra
  * Set integrity level of the given template array object to "frozen"
  */
 static void
-parser_tagged_template_literal_freeze_array (ecma_object_t *obj_p)
+parser_tagged_template_literal_freeze_array (ecma_object_t *obj_p /**< template object */)
 {
   JERRY_ASSERT (ecma_get_object_type (obj_p) == ECMA_OBJECT_TYPE_ARRAY);
   ecma_op_ordinary_object_prevent_extensions (obj_p);
@@ -156,7 +153,6 @@ parser_tagged_template_literal_finalize (ecma_object_t *template_obj_p, /**< tem
   parser_tagged_template_literal_freeze_array (template_obj_p);
   parser_tagged_template_literal_freeze_array (raw_strings_p);
 } /* parser_tagged_template_literal_finalize */
-#endif /* JERRY_ESNEXT */
 
 /**
  * @}

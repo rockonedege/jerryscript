@@ -39,7 +39,7 @@ enum
  * This object has a custom dispatch function.
  */
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-weakref-prototype.inc.h"
-#define BUILTIN_UNDERSCORED_ID weakref_prototype
+#define BUILTIN_UNDERSCORED_ID  weakref_prototype
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -52,18 +52,18 @@ enum
  * @{
  */
 
- /**
-  * Deref checks weakRef target
-  *
-  * @return weakRef target
-  *         error - otherwise
-  */
+/**
+ * Deref checks weakRef target
+ *
+ * @return weakRef target
+ *         error - otherwise
+ */
 static ecma_value_t
 ecma_builtin_weakref_prototype_object_deref (ecma_value_t this_arg) /**< this argument */
 {
   if (!ecma_is_value_object (this_arg))
   {
-    return ecma_raise_type_error ("Target is not Object");
+    return ecma_raise_type_error (ECMA_ERR_TARGET_IS_NOT_OBJECT);
   }
 
   ecma_object_t *object_p = ecma_get_object_from_value (this_arg);
@@ -71,7 +71,7 @@ ecma_builtin_weakref_prototype_object_deref (ecma_value_t this_arg) /**< this ar
 
   if (!ecma_object_class_is (object_p, ECMA_OBJECT_CLASS_WEAKREF))
   {
-    return ecma_raise_type_error ("Target is not weakRef");
+    return ecma_raise_type_error (ECMA_ERR_TARGET_IS_NOT_WEAKREF);
   }
 
   return ecma_copy_value (this_ext_obj->u.cls.u3.target);

@@ -13,14 +13,15 @@
  * limitations under the License.
  */
 
-#include "ecma-typedarray-object.h"
+#include "ecma-arraybuffer-object.h"
 #include "ecma-builtins.h"
 #include "ecma-exceptions.h"
+#include "ecma-function-object.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-typedarray-object.h"
-#include "ecma-function-object.h"
+
 #include "jrt.h"
 
 #if JERRY_BUILTIN_TYPEDARRAY
@@ -29,9 +30,8 @@
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-typedarray.inc.h"
-#define BUILTIN_UNDERSCORED_ID typedarray
+#define BUILTIN_UNDERSCORED_ID  typedarray
 #include "ecma-builtin-internal-routines-template.inc.h"
-
 #include "ecma-builtin-typedarray-helpers.h"
 
 /** \addtogroup ecma ECMA
@@ -62,7 +62,7 @@ ecma_builtin_typedarray_from (ecma_value_t this_arg, /**< 'this' argument */
 
   if (!ecma_is_constructor (this_arg))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not a constructor"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_CONSTRUCTOR);
   }
 
   ecma_value_t source;
@@ -71,7 +71,7 @@ ecma_builtin_typedarray_from (ecma_value_t this_arg, /**< 'this' argument */
 
   if (arguments_list_len == 0)
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("No source argument"));
+    return ecma_raise_type_error (ECMA_ERR_NO_SOURCE_ARGUMENT);
   }
 
   source = arguments_list_p[0];
@@ -82,7 +82,7 @@ ecma_builtin_typedarray_from (ecma_value_t this_arg, /**< 'this' argument */
 
     if (!ecma_op_is_callable (map_fn))
     {
-      return ecma_raise_type_error (ECMA_ERR_MSG ("The 'mapfn' argument is not callable"));
+      return ecma_raise_type_error (ECMA_ERR_THE_MAPFN_ARGUMENT_IS_NOT_CALLABLE);
     }
 
     if (arguments_list_len > 2)
@@ -91,10 +91,7 @@ ecma_builtin_typedarray_from (ecma_value_t this_arg, /**< 'this' argument */
     }
   }
 
-  return ecma_op_typedarray_from (this_arg,
-                                  source,
-                                  map_fn,
-                                  this_in_fn);
+  return ecma_op_typedarray_from (this_arg, source, map_fn, this_in_fn);
 
 } /* ecma_builtin_typedarray_from */
 
@@ -114,7 +111,7 @@ ecma_builtin_typedarray_of (ecma_value_t this_arg, /**< 'this' argument */
 {
   if (!ecma_is_constructor (this_arg))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not a constructor"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_CONSTRUCTOR);
   }
 
   ecma_object_t *constructor_obj_p = ecma_get_object_from_value (this_arg);
@@ -132,9 +129,23 @@ ecma_builtin_typedarray_of (ecma_value_t this_arg, /**< 'this' argument */
   ecma_typedarray_info_t info = ecma_typedarray_get_info (ret_obj_p);
   ecma_typedarray_setter_fn_t setter_cb = ecma_get_typedarray_setter_fn (info.id);
 
+  if (ECMA_ARRAYBUFFER_LAZY_ALLOC (info.array_buffer_p))
+  {
+    ecma_deref_object (ret_obj_p);
+    return ECMA_VALUE_ERROR;
+  }
+
+  if (ecma_arraybuffer_is_detached (info.array_buffer_p))
+  {
+    ecma_deref_object (ret_obj_p);
+    return ecma_raise_type_error (ECMA_ERR_ARRAYBUFFER_IS_DETACHED);
+  }
+
+  lit_utf8_byte_t *buffer_p = ecma_typedarray_get_buffer (&info);
+
   while (k < arguments_list_len)
   {
-    ecma_value_t set_element = setter_cb (info.buffer_p, arguments_list_p[k]);
+    ecma_value_t set_element = setter_cb (buffer_p, arguments_list_p[k]);
 
     if (ECMA_IS_VALUE_ERROR (set_element))
     {
@@ -143,7 +154,7 @@ ecma_builtin_typedarray_of (ecma_value_t this_arg, /**< 'this' argument */
     }
 
     k++;
-    info.buffer_p += info.element_size;
+    buffer_p += info.element_size;
   }
 
   return ret_val;
@@ -163,7 +174,7 @@ ecma_builtin_typedarray_dispatch_call (const ecma_value_t *arguments_list_p, /**
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("TypedArray intrinstic cannot be directly called"));
+  return ecma_raise_type_error (ECMA_ERR_TYPEDARRAY_INTRINSTIC_DIRECTLY_CALLED);
 } /* ecma_builtin_typedarray_dispatch_call */
 
 /**
@@ -180,7 +191,7 @@ ecma_builtin_typedarray_dispatch_construct (const ecma_value_t *arguments_list_p
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("TypedArray intrinstic cannot be called by a 'new' expression"));
+  return ecma_raise_type_error (ECMA_ERR_TYPEDARRAY_INTRINSTIC_CALLED_BY_NEW_EXPRESSION);
 } /* ecma_builtin_typedarray_dispatch_construct */
 
 /**

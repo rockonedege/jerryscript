@@ -13,16 +13,18 @@
  * limitations under the License.
  */
 
+#include "ecma-number-object.h"
+
 #include "ecma-alloc.h"
 #include "ecma-builtins.h"
 #include "ecma-exceptions.h"
+#include "ecma-function-object.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
-#include "ecma-number-object.h"
-#include "ecma-objects.h"
 #include "ecma-objects-general.h"
-#include "ecma-function-object.h"
+#include "ecma-objects.h"
+
 #include "jcontext.h"
 
 /** \addtogroup ecma ECMA
@@ -59,7 +61,7 @@ ecma_op_create_number_object (ecma_value_t arg) /**< argument passed to the Numb
   proto_id = ECMA_BUILTIN_ID_OBJECT_PROTOTYPE;
 #endif /* JERRY_BUILTIN_NUMBER */
   ecma_object_t *prototype_obj_p = ecma_builtin_get (proto_id);
-#if JERRY_ESNEXT
+
   ecma_object_t *new_target = JERRY_CONTEXT (current_new_target_p);
   if (new_target)
   {
@@ -69,22 +71,21 @@ ecma_op_create_number_object (ecma_value_t arg) /**< argument passed to the Numb
       return ECMA_VALUE_ERROR;
     }
   }
-#endif /* JERRY_ESNEXT */
-  ecma_object_t *object_p = ecma_create_object (prototype_obj_p,
-                                                sizeof (ecma_extended_object_t),
-                                                ECMA_OBJECT_TYPE_CLASS);
+
+  ecma_object_t *object_p =
+    ecma_create_object (prototype_obj_p, sizeof (ecma_extended_object_t), ECMA_OBJECT_TYPE_CLASS);
 
   ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) object_p;
   ext_object_p->u.cls.type = ECMA_OBJECT_CLASS_NUMBER;
 
   /* Pass reference (no need to free conv_to_num_completion). */
   ext_object_p->u.cls.u3.value = conv_to_num_completion;
-#if JERRY_ESNEXT
+
   if (new_target)
   {
     ecma_deref_object (prototype_obj_p);
   }
-#endif /* JERRY_ESNEXT */
+
   return ecma_make_object_value (object_p);
 } /* ecma_op_create_number_object */
 

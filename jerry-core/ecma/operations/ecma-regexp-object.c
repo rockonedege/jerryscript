@@ -13,15 +13,17 @@
  * limitations under the License.
  */
 
+#include "ecma-regexp-object.h"
+
 #include "ecma-alloc.h"
 #include "ecma-array-object.h"
 #include "ecma-builtin-helpers.h"
 #include "ecma-exceptions.h"
+#include "ecma-function-object.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-objects.h"
-#include "ecma-function-object.h"
-#include "ecma-regexp-object.h"
+
 #include "jcontext.h"
 #include "jrt-libc-includes.h"
 #include "lit-char-helpers.h"
@@ -96,13 +98,11 @@ ecma_regexp_parse_flags (ecma_string_t *flags_str_p, /**< Input string with flag
         flag = RE_FLAG_UNICODE;
         break;
       }
-#if JERRY_ESNEXT
       case 's':
       {
         flag = RE_FLAG_DOTALL;
         break;
       }
-#endif /* JERRY_ESNEXT */
       default:
       {
         flag = RE_FLAG_EMPTY;
@@ -112,7 +112,7 @@ ecma_regexp_parse_flags (ecma_string_t *flags_str_p, /**< Input string with flag
 
     if (flag == RE_FLAG_EMPTY || (result_flags & flag) != 0)
     {
-      ret_value = ecma_raise_syntax_error (ECMA_ERR_MSG ("Invalid RegExp flags"));
+      ret_value = ecma_raise_syntax_error (ECMA_ERR_INVALID_REGEXP_FLAGS);
       break;
     }
 
@@ -124,81 +124,6 @@ ecma_regexp_parse_flags (ecma_string_t *flags_str_p, /**< Input string with flag
   *flags_p = result_flags;
   return ret_value;
 } /* ecma_regexp_parse_flags */
-
-#if !JERRY_ESNEXT
-/*
- * Create the properties of a RegExp instance.
- */
-static void
-ecma_regexp_create_props (ecma_object_t *re_object_p, /**< RegExp object */
-                          ecma_string_t *source_p, /**< source string */
-                          uint16_t flags) /**< flags */
-{
-  ecma_property_value_t *prop_value_p;
-
-  prop_value_p = ecma_create_named_data_property (re_object_p,
-                                                  ecma_get_magic_string (LIT_MAGIC_STRING_SOURCE),
-                                                  ECMA_PROPERTY_FIXED,
-                                                  NULL);
-
-  ecma_ref_ecma_string (source_p);
-  prop_value_p->value = ecma_make_string_value (source_p);
-
-  prop_value_p = ecma_create_named_data_property (re_object_p,
-                                                  ecma_get_magic_string (LIT_MAGIC_STRING_GLOBAL),
-                                                  ECMA_PROPERTY_FIXED,
-                                                  NULL);
-
-  prop_value_p->value = ecma_make_boolean_value (flags & RE_FLAG_GLOBAL);
-
-  prop_value_p = ecma_create_named_data_property (re_object_p,
-                                                  ecma_get_magic_string (LIT_MAGIC_STRING_IGNORECASE_UL),
-                                                  ECMA_PROPERTY_FIXED,
-                                                  NULL);
-
-  prop_value_p->value = ecma_make_boolean_value (flags & RE_FLAG_IGNORE_CASE);
-
-  prop_value_p = ecma_create_named_data_property (re_object_p,
-                                                  ecma_get_magic_string (LIT_MAGIC_STRING_MULTILINE),
-                                                  ECMA_PROPERTY_FIXED,
-                                                  NULL);
-
-  prop_value_p->value = ecma_make_boolean_value (flags & RE_FLAG_MULTILINE);
-} /* ecma_regexp_create_props */
-
-/*
- * Update the properties of a RegExp instance.
- */
-static void
-ecma_regexp_update_props (ecma_object_t *re_object_p, /**< RegExp object */
-                          ecma_string_t *source_p, /**< source string */
-                          uint16_t flags) /**< flags */
-{
-  ecma_property_t *prop_p;
-
-  prop_p = ecma_find_named_property (re_object_p, ecma_get_magic_string (LIT_MAGIC_STRING_SOURCE));
-  JERRY_ASSERT (prop_p != NULL);
-  ecma_property_value_t *prop_value_p = ECMA_PROPERTY_VALUE_PTR (prop_p);
-  ecma_free_value (prop_value_p->value);
-  ecma_ref_ecma_string (source_p);
-  prop_value_p->value = ecma_make_string_value (source_p);
-
-  prop_p = ecma_find_named_property (re_object_p, ecma_get_magic_string (LIT_MAGIC_STRING_GLOBAL));
-  JERRY_ASSERT (prop_p != NULL);
-  prop_value_p = ECMA_PROPERTY_VALUE_PTR (prop_p);
-  prop_value_p->value = ecma_make_boolean_value (flags & RE_FLAG_GLOBAL);
-
-  prop_p = ecma_find_named_property (re_object_p, ecma_get_magic_string (LIT_MAGIC_STRING_IGNORECASE_UL));
-  JERRY_ASSERT (prop_p != NULL);
-  prop_value_p = ECMA_PROPERTY_VALUE_PTR (prop_p);
-  prop_value_p->value = ecma_make_boolean_value (flags & RE_FLAG_IGNORE_CASE);
-
-  prop_p = ecma_find_named_property (re_object_p, ecma_get_magic_string (LIT_MAGIC_STRING_MULTILINE));
-  JERRY_ASSERT (prop_p != NULL);
-  prop_value_p = ECMA_PROPERTY_VALUE_PTR (prop_p);
-  prop_value_p->value = ecma_make_boolean_value (flags & RE_FLAG_MULTILINE);
-} /* ecma_regexp_update_props */
-#endif /* !JERRY_ESNEXT */
 
 /**
  * RegExpAlloc method
@@ -214,32 +139,22 @@ ecma_regexp_update_props (ecma_object_t *re_object_p, /**< RegExp object */
 ecma_object_t *
 ecma_op_regexp_alloc (ecma_object_t *ctr_obj_p) /**< constructor object pointer */
 {
-#if JERRY_ESNEXT
   if (ctr_obj_p == NULL)
   {
     ctr_obj_p = ecma_builtin_get (ECMA_BUILTIN_ID_REGEXP);
   }
 
-  ecma_object_t *proto_obj_p = ecma_op_get_prototype_from_constructor (ctr_obj_p,
-                                                                       ECMA_BUILTIN_ID_REGEXP_PROTOTYPE);
+  ecma_object_t *proto_obj_p = ecma_op_get_prototype_from_constructor (ctr_obj_p, ECMA_BUILTIN_ID_REGEXP_PROTOTYPE);
 
   if (JERRY_UNLIKELY (proto_obj_p == NULL))
   {
     return proto_obj_p;
   }
 
-#else /* !JERRY_ESNEXT */
-  JERRY_UNUSED (ctr_obj_p);
-  ecma_object_t *proto_obj_p = ecma_builtin_get (ECMA_BUILTIN_ID_REGEXP_PROTOTYPE);
-#endif /* JERRY_ESNEXT */
+  ecma_object_t *new_object_p =
+    ecma_create_object (proto_obj_p, sizeof (ecma_extended_object_t), ECMA_OBJECT_TYPE_CLASS);
 
-  ecma_object_t *new_object_p = ecma_create_object (proto_obj_p,
-                                                    sizeof (ecma_extended_object_t),
-                                                    ECMA_OBJECT_TYPE_CLASS);
-
-#if JERRY_ESNEXT
   ecma_deref_object (proto_obj_p);
-#endif /* JERRY_ESNEXT */
 
   ecma_extended_object_t *regexp_obj_p = (ecma_extended_object_t *) new_object_p;
 
@@ -259,31 +174,11 @@ ecma_op_regexp_alloc (ecma_object_t *ctr_obj_p) /**< constructor object pointer 
 /**
  * Helper method for initializing an aready existing RegExp object.
  */
-static void
+static inline void JERRY_ATTR_ALWAYS_INLINE
 ecma_op_regexp_initialize (ecma_object_t *regexp_obj_p, /**< RegExp object */
-                           const re_compiled_code_t *bc_p, /**< bytecode */
-                           ecma_string_t *pattern_str_p, /**< pattern */
-                           uint16_t flags) /**< flags */
+                           const re_compiled_code_t *bc_p) /**< bytecode */
 {
   ecma_extended_object_t *ext_obj_p = (ecma_extended_object_t *) regexp_obj_p;
-
-#if !JERRY_ESNEXT
-  if (ext_obj_p->u.cls.type == ECMA_OBJECT_CLASS__MAX)
-  {
-    /* This instance has not been initialized before. */
-    ecma_regexp_create_props (regexp_obj_p, pattern_str_p, flags);
-  }
-  else
-  {
-    ecma_regexp_update_props (regexp_obj_p, pattern_str_p, flags);
-  }
-#endif /* !JERRY_ESNEXT */
-
-#if JERRY_ESNEXT
-  JERRY_UNUSED (pattern_str_p);
-  JERRY_UNUSED (flags);
-#endif /* JERRY_ESNEXT */
-
   ext_obj_p->u.cls.type = ECMA_OBJECT_CLASS_REGEXP;
   ECMA_SET_INTERNAL_VALUE_POINTER (ext_obj_p->u.cls.u3.value, bc_p);
 } /* ecma_op_regexp_initialize */
@@ -339,7 +234,7 @@ ecma_op_create_regexp_from_pattern (ecma_object_t *regexp_obj_p, /**< RegExp obj
     return ECMA_VALUE_ERROR;
   }
 
-  ecma_op_regexp_initialize (regexp_obj_p, bc_p, pattern_str_p, flags);
+  ecma_op_regexp_initialize (regexp_obj_p, bc_p);
   ecma_deref_ecma_string (pattern_str_p);
 
   return ecma_make_object_value (regexp_obj_p);
@@ -358,10 +253,8 @@ ecma_op_create_regexp_from_bytecode (ecma_object_t *regexp_obj_p, /**< RegExp ob
                                      re_compiled_code_t *bc_p) /**< bytecode */
 {
   ecma_bytecode_ref ((ecma_compiled_code_t *) bc_p);
-  ecma_string_t *pattern_str_p = ecma_get_string_from_value (bc_p->source);
-  uint16_t flags = bc_p->header.status_flags;
 
-  ecma_op_regexp_initialize (regexp_obj_p, bc_p, pattern_str_p, flags);
+  ecma_op_regexp_initialize (regexp_obj_p, bc_p);
 
   return ecma_make_object_value (regexp_obj_p);
 } /* ecma_op_create_regexp_from_bytecode */
@@ -394,7 +287,7 @@ ecma_op_create_regexp_with_flags (ecma_object_t *regexp_obj_p, /**< RegExp objec
     return ECMA_VALUE_ERROR;
   }
 
-  ecma_op_regexp_initialize (regexp_obj_p, bc_p, pattern_str_p, flags);
+  ecma_op_regexp_initialize (regexp_obj_p, bc_p);
 
   return ecma_make_object_value (regexp_obj_p);
 } /* ecma_op_create_regexp_with_flags */
@@ -408,7 +301,6 @@ lit_code_point_t
 ecma_regexp_canonicalize_char (lit_code_point_t ch, /**< character */
                                bool unicode) /**< unicode */
 {
-#if JERRY_ESNEXT
   if (unicode)
   {
     /* In unicode mode the mappings contained in the CaseFolding.txt file should be used to canonicalize the character.
@@ -432,14 +324,11 @@ ecma_regexp_canonicalize_char (lit_code_point_t ch, /**< character */
 
     return ch;
   }
-#endif /* !JERRY_ESNEXT */
 
   JERRY_UNUSED (unicode);
   lit_code_point_t cu = lit_char_to_upper_case (ch, NULL);
 
-  if (ch <= LIT_UTF8_1_BYTE_CODE_POINT_MAX
-      || (cu > LIT_UTF8_1_BYTE_CODE_POINT_MAX
-          && cu != LIT_MULTIPLE_CU))
+  if (ch <= LIT_UTF8_1_BYTE_CODE_POINT_MAX || (cu > LIT_UTF8_1_BYTE_CODE_POINT_MAX && cu != LIT_MULTIPLE_CU))
   {
     return cu;
   }
@@ -522,9 +411,7 @@ ecma_regexp_advance (ecma_regexp_ctx_t *re_ctx_p, /**< regexp context */
   JERRY_ASSERT (str_p != NULL);
   lit_code_point_t cp = lit_cesu8_read_next (str_p);
 
-#if JERRY_ESNEXT
-  if (JERRY_UNLIKELY (re_ctx_p->flags & RE_FLAG_UNICODE)
-      && lit_is_code_point_utf16_high_surrogate ((ecma_char_t) cp)
+  if (JERRY_UNLIKELY (re_ctx_p->flags & RE_FLAG_UNICODE) && lit_is_code_point_utf16_high_surrogate ((ecma_char_t) cp)
       && *str_p < re_ctx_p->input_end_p)
   {
     const ecma_char_t next_ch = lit_cesu8_peek_next (*str_p);
@@ -534,12 +421,10 @@ ecma_regexp_advance (ecma_regexp_ctx_t *re_ctx_p, /**< regexp context */
       *str_p += LIT_UTF8_MAX_BYTES_IN_CODE_UNIT;
     }
   }
-#endif /* JERRY_ESNEXT */
 
   return ecma_regexp_canonicalize (cp, re_ctx_p->flags);
 } /* ecma_regexp_advance */
 
-#if JERRY_ESNEXT
 /**
  * Helper function to get current full unicode code point and advance the string pointer.
  *
@@ -553,8 +438,7 @@ ecma_regexp_unicode_advance (const lit_utf8_byte_t **str_p, /**< reference to st
   const lit_utf8_byte_t *current_p = *str_p;
 
   lit_code_point_t ch = lit_cesu8_read_next (&current_p);
-  if (lit_is_code_point_utf16_high_surrogate ((ecma_char_t) ch)
-      && current_p < end_p)
+  if (lit_is_code_point_utf16_high_surrogate ((ecma_char_t) ch) && current_p < end_p)
   {
     const ecma_char_t next_ch = lit_cesu8_peek_next (current_p);
     if (lit_is_code_point_utf16_low_surrogate (next_ch))
@@ -567,7 +451,6 @@ ecma_regexp_unicode_advance (const lit_utf8_byte_t **str_p, /**< reference to st
   *str_p = current_p;
   return ch;
 } /* ecma_regexp_unicode_advance */
-#endif /* JERRY_ESNEXT */
 
 /**
  * Helper function to revert the string pointer to the previous code point.
@@ -579,18 +462,14 @@ ecma_regexp_step_back (ecma_regexp_ctx_t *re_ctx_p, /**< regexp context */
                        const lit_utf8_byte_t *str_p) /**< reference to string pointer */
 {
   JERRY_ASSERT (str_p != NULL);
-#if JERRY_ESNEXT
+
   lit_code_point_t ch = lit_cesu8_read_prev (&str_p);
-  if (JERRY_UNLIKELY (re_ctx_p->flags & RE_FLAG_UNICODE)
-      && lit_is_code_point_utf16_low_surrogate (ch)
+  if (JERRY_UNLIKELY (re_ctx_p->flags & RE_FLAG_UNICODE) && lit_is_code_point_utf16_low_surrogate (ch)
       && lit_is_code_point_utf16_high_surrogate (lit_cesu8_peek_prev (str_p)))
   {
     str_p -= LIT_UTF8_MAX_BYTES_IN_CODE_UNIT;
   }
-#else /* !JERRY_ESNEXT */
-  JERRY_UNUSED (re_ctx_p);
-  lit_utf8_decr (&str_p);
-#endif /* !JERRY_ESNEXT */
+
   return str_p;
 } /* ecma_regexp_step_back */
 
@@ -611,7 +490,6 @@ ecma_regexp_is_word_boundary (ecma_regexp_ctx_t *re_ctx_p, /**< regexp context *
   {
     left_cp = LIT_INVALID_CP;
   }
-#if JERRY_ESNEXT
   else if (JERRY_UNLIKELY ((re_ctx_p->flags & (RE_FLAG_UNICODE | RE_FLAG_IGNORE_CASE))
                            == (RE_FLAG_UNICODE | RE_FLAG_IGNORE_CASE)))
   {
@@ -619,7 +497,6 @@ ecma_regexp_is_word_boundary (ecma_regexp_ctx_t *re_ctx_p, /**< regexp context *
     left_cp = ecma_regexp_advance (re_ctx_p, &prev_p);
     JERRY_ASSERT (prev_p == str_p);
   }
-#endif /* JERRY_ESNEXT */
   else
   {
     left_cp = str_p[-1];
@@ -629,13 +506,11 @@ ecma_regexp_is_word_boundary (ecma_regexp_ctx_t *re_ctx_p, /**< regexp context *
   {
     right_cp = LIT_INVALID_CP;
   }
-#if JERRY_ESNEXT
   else if (JERRY_UNLIKELY ((re_ctx_p->flags & (RE_FLAG_UNICODE | RE_FLAG_IGNORE_CASE))
                            == (RE_FLAG_UNICODE | RE_FLAG_IGNORE_CASE)))
   {
     right_cp = ecma_regexp_advance (re_ctx_p, &str_p);
   }
-#endif /* JERRY_ESNEXT */
   else
   {
     right_cp = str_p[0];
@@ -1270,8 +1145,7 @@ ecma_regexp_run (ecma_regexp_ctx_t *re_ctx_p, /**< RegExp matcher context */
 
         const lit_utf8_size_t capture_size = (lit_utf8_size_t) (capture_p->end_p - capture_p->begin_p);
 
-        if (str_curr_p + capture_size > re_ctx_p->input_end_p
-            || memcmp (str_curr_p, capture_p->begin_p, capture_size))
+        if (str_curr_p + capture_size > re_ctx_p->input_end_p || memcmp (str_curr_p, capture_p->begin_p, capture_size))
         {
           goto fail;
         }
@@ -1500,7 +1374,6 @@ class_found:
         bc_p = bc_p + escape_count + chars_size + ranges_size;
         continue;
       }
-#if JERRY_ESNEXT
       case RE_OP_UNICODE_PERIOD:
       {
         if (str_curr_p >= re_ctx_p->input_end_p)
@@ -1511,15 +1384,13 @@ class_found:
         const lit_code_point_t cp = ecma_regexp_unicode_advance (&str_curr_p, re_ctx_p->input_end_p);
 
         if (!(re_ctx_p->flags & RE_FLAG_DOTALL)
-            && JERRY_UNLIKELY (cp <= LIT_UTF16_CODE_UNIT_MAX
-                               && lit_char_is_line_terminator ((ecma_char_t) cp)))
+            && JERRY_UNLIKELY (cp <= LIT_UTF16_CODE_UNIT_MAX && lit_char_is_line_terminator ((ecma_char_t) cp)))
         {
           goto fail;
         }
 
         continue;
       }
-#endif /* JERRY_ESNEXT */
       case RE_OP_PERIOD:
       {
         if (str_curr_p >= re_ctx_p->input_end_p)
@@ -1528,13 +1399,8 @@ class_found:
         }
 
         const ecma_char_t ch = lit_cesu8_read_next (&str_curr_p);
-#if !JERRY_ESNEXT
-        bool has_dot_all_flag = false;
-#else /* JERRY_ESNEXT */
-        bool has_dot_all_flag = (re_ctx_p->flags & RE_FLAG_DOTALL) != 0;
-#endif /* !JERRY_ESNEXT */
 
-        if (!has_dot_all_flag && lit_char_is_line_terminator (ch))
+        if (!(re_ctx_p->flags & RE_FLAG_DOTALL) && lit_char_is_line_terminator (ch))
         {
           goto fail;
         }
@@ -1562,8 +1428,7 @@ class_found:
       {
         JERRY_ASSERT (op == RE_OP_BYTE);
 
-        if (str_curr_p >= re_ctx_p->input_end_p
-            || *bc_p++ != *str_curr_p++)
+        if (str_curr_p >= re_ctx_p->input_end_p || *bc_p++ != *str_curr_p++)
         {
           goto fail;
         }
@@ -1645,10 +1510,7 @@ ecma_regexp_create_result_object (ecma_regexp_ctx_t *re_ctx_p, /**< regexp conte
   for (uint32_t i = 0; i < re_ctx_p->captures_count; i++)
   {
     ecma_value_t capture_value = ecma_regexp_get_capture_value (re_ctx_p->captures_p + i);
-    ecma_builtin_helper_def_prop_by_index (result_p,
-                                           i,
-                                           capture_value,
-                                           ECMA_PROPERTY_CONFIGURABLE_ENUMERABLE_WRITABLE);
+    ecma_builtin_helper_def_prop_by_index (result_p, i, capture_value, ECMA_PROPERTY_CONFIGURABLE_ENUMERABLE_WRITABLE);
     ecma_free_value (capture_value);
   }
 
@@ -1742,43 +1604,21 @@ ecma_regexp_exec_helper (ecma_object_t *regexp_object_p, /**< RegExp object */
   lit_utf8_size_t input_size;
   lit_utf8_size_t input_length;
   uint8_t input_flags = ECMA_STRING_FLAG_IS_ASCII;
-  const lit_utf8_byte_t *input_buffer_p = ecma_string_get_chars (input_string_p,
-                                                                 &input_size,
-                                                                 &input_length,
-                                                                 NULL,
-                                                                 &input_flags);
+  const lit_utf8_byte_t *input_buffer_p =
+    ecma_string_get_chars (input_string_p, &input_size, &input_length, NULL, &input_flags);
 
   const lit_utf8_byte_t *input_curr_p = input_buffer_p;
   const lit_utf8_byte_t *input_end_p = input_buffer_p + input_size;
 
   ecma_regexp_ctx_t re_ctx;
-  ecma_regexp_initialize_context (&re_ctx,
-                                  bc_p,
-                                  input_buffer_p,
-                                  input_end_p);
+  ecma_regexp_initialize_context (&re_ctx, bc_p, input_buffer_p, input_end_p);
 
   /* 4. */
   ecma_length_t index = 0;
   ecma_value_t lastindex_value = ecma_op_object_get_by_magic_id (regexp_object_p, LIT_MAGIC_STRING_LASTINDEX_UL);
 
-#if JERRY_ESNEXT
   ret_value = ecma_op_to_length (lastindex_value, &index);
   ecma_free_value (lastindex_value);
-#else /* !JERRY_ESNEXT */
-  ecma_number_t lastindex_num = 0.0f;
-  ret_value = ecma_op_to_integer (lastindex_value, &lastindex_num);
-  ecma_free_value (lastindex_value);
-
-  /* The ToInteger operation might have thrown an error, however in that case lastindex_num will still be zero,
-   * and the error will be handled later after the uint32 coercion. */
-  if ((re_ctx.flags & RE_FLAG_GLOBAL) && lastindex_num < 0.0f)
-  {
-    JERRY_ASSERT (!ECMA_IS_VALUE_ERROR (ret_value));
-    goto fail_put_lastindex;
-  }
-
-  index = ecma_number_to_uint32 (lastindex_num);
-#endif /* JERRY_ESNEXT */
 
   if (ECMA_IS_VALUE_ERROR (ret_value))
   {
@@ -1831,13 +1671,11 @@ ecma_regexp_exec_helper (ecma_object_t *regexp_object_p, /**< RegExp object */
       goto match_found;
     }
 
-#if JERRY_ESNEXT
     /* 12.c.i */
     if (re_ctx.flags & RE_FLAG_STICKY)
     {
       goto fail_put_lastindex;
     }
-#endif /* JERRY_ESNEXT */
 
     /* 12.a */
     if (input_curr_p >= input_end_p)
@@ -1855,7 +1693,6 @@ ecma_regexp_exec_helper (ecma_object_t *regexp_object_p, /**< RegExp object */
     /* 12.c.ii */
     index++;
 
-#if JERRY_ESNEXT
     if (re_ctx.flags & RE_FLAG_UNICODE)
     {
       const lit_code_point_t cp = ecma_regexp_unicode_advance (&input_curr_p, input_end_p);
@@ -1867,7 +1704,6 @@ ecma_regexp_exec_helper (ecma_object_t *regexp_object_p, /**< RegExp object */
 
       continue;
     }
-#endif /* JERRY_ESNEXT */
 
     lit_utf8_incr (&input_curr_p);
   }
@@ -1900,7 +1736,7 @@ match_found:
 
   if (ECMA_RE_STACK_LIMIT_REACHED (matched_p))
   {
-    ret_value = ecma_raise_range_error (ECMA_ERR_MSG ("Stack limit exceeded"));
+    ret_value = ecma_raise_range_error (ECMA_ERR_STACK_LIMIT_EXCEEDED);
     goto cleanup_context;
   }
 
@@ -1920,8 +1756,7 @@ match_found:
     }
     else
     {
-      match_length = lit_utf8_string_length (match_begin_p,
-                                             (lit_utf8_size_t) (match_end_p - match_begin_p));
+      match_length = lit_utf8_string_length (match_begin_p, (lit_utf8_size_t) (match_end_p - match_begin_p));
     }
 
     ret_value = ecma_op_object_put (regexp_object_p,
@@ -1991,7 +1826,7 @@ ecma_regexp_search_helper (ecma_value_t regexp_arg, /**< regexp argument */
   /* 2. */
   if (!ecma_is_value_object (regexp_arg))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_OBJECT);
   }
 
   ecma_value_t result = ECMA_VALUE_ERROR;
@@ -2016,10 +1851,8 @@ ecma_regexp_search_helper (ecma_value_t regexp_arg, /**< regexp argument */
   /* 5. */
   if (prev_last_index != ecma_make_uint32_value (0))
   {
-    const ecma_value_t status = ecma_op_object_put (regexp_object_p,
-                                                    last_index_str_p,
-                                                    ecma_make_uint32_value (0),
-                                                    true);
+    const ecma_value_t status =
+      ecma_op_object_put (regexp_object_p, last_index_str_p, ecma_make_uint32_value (0), true);
 
     if (ECMA_IS_VALUE_ERROR (status))
     {
@@ -2095,11 +1928,10 @@ ecma_regexp_split_helper (ecma_value_t this_arg, /**< this value */
                           ecma_value_t string_arg, /**< string value */
                           ecma_value_t limit_arg) /**< limit value */
 {
-#if JERRY_ESNEXT
   /* 2. */
   if (!ecma_is_value_object (this_arg))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_OBJECT);
   }
 
   ecma_value_t result = ECMA_VALUE_ERROR;
@@ -2140,11 +1972,8 @@ ecma_regexp_split_helper (ecma_value_t this_arg, /**< this value */
 
   lit_utf8_size_t flags_size;
   uint8_t flags_str_flags = ECMA_STRING_FLAG_IS_ASCII;
-  const lit_utf8_byte_t *flags_buffer_p = ecma_string_get_chars (flags_str_p,
-                                                                 &flags_size,
-                                                                 NULL,
-                                                                 NULL,
-                                                                 &flags_str_flags);
+  const lit_utf8_byte_t *flags_buffer_p =
+    ecma_string_get_chars (flags_str_p, &flags_size, NULL, NULL, &flags_str_flags);
 
   bool unicode = false;
   bool sticky = false;
@@ -2260,10 +2089,7 @@ ecma_regexp_split_helper (ecma_value_t this_arg, /**< this value */
   {
     /* 24.a-b. */
     ecma_value_t index_value = ecma_make_length_value (current_index);
-    result = ecma_op_object_put (splitter_obj_p,
-                                 lastindex_str_p,
-                                 index_value,
-                                 true);
+    result = ecma_op_object_put (splitter_obj_p, lastindex_str_p, index_value, true);
 
     ecma_free_value (index_value);
 
@@ -2325,9 +2151,8 @@ ecma_regexp_split_helper (ecma_value_t this_arg, /**< this value */
 
     /* 24.f.iv.1-4. */
     JERRY_ASSERT (previous_index <= string_length && current_index <= string_length);
-    ecma_string_t *const split_str_p = ecma_string_substr (string_p,
-                                                           (lit_utf8_size_t) previous_index,
-                                                           (lit_utf8_size_t) current_index);
+    ecma_string_t *const split_str_p =
+      ecma_string_substr (string_p, (lit_utf8_size_t) previous_index, (lit_utf8_size_t) current_index);
 
     result = ecma_builtin_helper_def_prop_by_index (array_p,
                                                     array_length++,
@@ -2416,175 +2241,6 @@ cleanup_string:
   ecma_deref_ecma_string (string_p);
 
   return result;
-#else /* !JERRY_ESNEXT */
-  ecma_value_t result = ECMA_VALUE_ERROR;
-
-  /* 2. */
-  ecma_string_t *string_p = ecma_op_to_string (string_arg);
-  if (JERRY_UNLIKELY (string_p == NULL))
-  {
-    return result;
-  }
-
-  /* 5. */
-  uint32_t limit = UINT32_MAX;
-  if (!ecma_is_value_undefined (limit_arg))
-  {
-    if (ECMA_IS_VALUE_ERROR (ecma_op_to_length (limit_arg, &limit)))
-    {
-      goto cleanup_string;
-    }
-  }
-
-  /* 15. */
-  ecma_object_t *const array_p = ecma_op_new_array_object (0);
-  ecma_value_t array = ecma_make_object_value (array_p);
-
-  /* 21. */
-  if (limit == 0)
-  {
-    result = array;
-    goto cleanup_string;
-  }
-
-  uint32_t array_length = 0;
-
-  ecma_object_t *const regexp_p = ecma_get_object_from_value (this_arg);
-  ecma_extended_object_t *const ext_object_p = (ecma_extended_object_t *) regexp_p;
-  re_compiled_code_t *const bc_p = ECMA_GET_INTERNAL_VALUE_POINTER (re_compiled_code_t, ext_object_p->u.cls.u3.value);
-
-  lit_utf8_size_t string_size;
-  lit_utf8_size_t string_length;
-  uint8_t string_flags = ECMA_STRING_FLAG_IS_ASCII;
-  const lit_utf8_byte_t *string_buffer_p = ecma_string_get_chars (string_p,
-                                                                  &string_size,
-                                                                  &string_length,
-                                                                  NULL,
-                                                                  &string_flags);
-
-  const lit_utf8_byte_t *current_str_p = string_buffer_p;
-  const lit_utf8_byte_t *previous_str_p = string_buffer_p;
-  const lit_utf8_byte_t *const string_end_p = string_buffer_p + string_size;
-
-  ecma_regexp_ctx_t re_ctx;
-  ecma_regexp_initialize_context (&re_ctx,
-                                  bc_p,
-                                  string_buffer_p,
-                                  string_buffer_p + string_size);
-
-  uint8_t *const bc_start_p = (uint8_t *) (bc_p + 1);
-
-  if (string_length == 0)
-  {
-    const lit_utf8_byte_t *const matched_p = ecma_regexp_match (&re_ctx, bc_start_p, current_str_p);
-
-    if (ECMA_RE_STACK_LIMIT_REACHED (matched_p))
-    {
-      result = ecma_raise_range_error (ECMA_ERR_MSG ("Stack limit exceeded"));
-      goto cleanup_array;
-    }
-
-    if (matched_p == NULL)
-    {
-      result = ecma_builtin_helper_def_prop_by_index (array_p,
-                                                      array_length,
-                                                      ecma_make_string_value (string_p),
-                                                      ECMA_PROPERTY_CONFIGURABLE_ENUMERABLE_WRITABLE);
-      JERRY_ASSERT (ecma_is_value_true (result));
-    }
-
-    result = array;
-    goto cleanup_context;
-  }
-
-  /* 13. */
-  while (current_str_p < string_end_p)
-  {
-    /* 13.a. */
-    const lit_utf8_byte_t *const matched_p = ecma_regexp_match (&re_ctx, bc_start_p, current_str_p);
-
-    if (ECMA_RE_STACK_LIMIT_REACHED (matched_p))
-    {
-      result = ecma_raise_range_error (ECMA_ERR_MSG ("Stack limit exceeded"));
-      goto cleanup_array;
-    }
-
-    if (matched_p == NULL || matched_p == previous_str_p)
-    {
-      lit_utf8_incr (&current_str_p);
-      continue;
-    }
-
-    /* 13.c.iii.1. */
-    ecma_string_t *const str_p = ecma_new_ecma_string_from_utf8 (previous_str_p,
-                                                                 (lit_utf8_size_t) (current_str_p - previous_str_p));
-
-    result = ecma_builtin_helper_def_prop_by_index (array_p,
-                                                    array_length++,
-                                                    ecma_make_string_value (str_p),
-                                                    ECMA_PROPERTY_CONFIGURABLE_ENUMERABLE_WRITABLE);
-    JERRY_ASSERT (ecma_is_value_true (result));
-    ecma_deref_ecma_string (str_p);
-
-    if (array_length == limit)
-    {
-      result = array;
-      goto cleanup_context;
-    }
-
-    /* 13.c.iii.5. */
-    previous_str_p = matched_p;
-
-    uint32_t index = 1;
-    while (index < re_ctx.captures_count)
-    {
-      const ecma_value_t capture = ecma_regexp_get_capture_value (re_ctx.captures_p + index);
-      result = ecma_builtin_helper_def_prop_by_index (array_p,
-                                                      array_length++,
-                                                      capture,
-                                                      ECMA_PROPERTY_CONFIGURABLE_ENUMERABLE_WRITABLE);
-      JERRY_ASSERT (ecma_is_value_true (result));
-      ecma_free_value (capture);
-
-      if (array_length == limit)
-      {
-        result = array;
-        goto cleanup_context;
-      }
-
-      index++;
-    }
-
-    /* 13.c.iii.8. */
-    current_str_p = matched_p;
-  }
-
-  ecma_string_t *const str_p = ecma_new_ecma_string_from_utf8 (previous_str_p,
-                                                               (lit_utf8_size_t) (string_end_p - previous_str_p));
-
-  result = ecma_builtin_helper_def_prop_by_index (array_p,
-                                                  array_length++,
-                                                  ecma_make_string_value (str_p),
-                                                  ECMA_PROPERTY_CONFIGURABLE_ENUMERABLE_WRITABLE);
-  JERRY_ASSERT (ecma_is_value_true (result));
-  ecma_deref_ecma_string (str_p);
-
-  result = array;
-  goto cleanup_context;
-
-cleanup_array:
-  ecma_deref_object (array_p);
-cleanup_context:
-  ecma_regexp_cleanup_context (&re_ctx);
-  if (string_flags & ECMA_STRING_FLAG_MUST_BE_FREED)
-  {
-    jmem_heap_free_block ((void *) string_buffer_p, string_size);
-  }
-cleanup_string:
-  ecma_deref_ecma_string (string_p);
-
-  return result;
-#endif /* JERRY_ESNEXT */
 } /* ecma_regexp_split_helper */
 
 /**
@@ -2616,11 +2272,7 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
 
   uint8_t string_flags = ECMA_STRING_FLAG_IS_ASCII;
   lit_utf8_size_t string_length;
-  ctx_p->string_p = ecma_string_get_chars (string_p,
-                                           &(ctx_p->string_size),
-                                           &string_length,
-                                           NULL,
-                                           &string_flags);
+  ctx_p->string_p = ecma_string_get_chars (string_p, &(ctx_p->string_size), &string_length, NULL, &string_flags);
 
   const lit_utf8_byte_t *const string_end_p = ctx_p->string_p + ctx_p->string_size;
   const uint8_t *const bc_start_p = (const uint8_t *) (bc_p + 1);
@@ -2630,14 +2282,11 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
   ecma_length_t index;
 
   ecma_regexp_ctx_t re_ctx;
-  ecma_regexp_initialize_context (&re_ctx,
-                                  bc_p,
-                                  ctx_p->string_p,
-                                  string_end_p);
+  ecma_regexp_initialize_context (&re_ctx, bc_p, ctx_p->string_p, string_end_p);
 
   /* lastIndex must be accessed to remain consistent with the standard, even though we may not need the value. */
-  ecma_value_t lastindex_value = ecma_op_object_get_by_magic_id ((ecma_object_t *) re_obj_p,
-                                                                 LIT_MAGIC_STRING_LASTINDEX_UL);
+  ecma_value_t lastindex_value =
+    ecma_op_object_get_by_magic_id ((ecma_object_t *) re_obj_p, LIT_MAGIC_STRING_LASTINDEX_UL);
   ecma_value_t result = ecma_op_to_length (lastindex_value, &index);
   ecma_free_value (lastindex_value);
 
@@ -2646,7 +2295,6 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
     goto cleanup_context;
   }
 
-#if JERRY_ESNEXT
   /* Only non-global sticky matches use the lastIndex value, otherwise the starting index is 0. */
   if (JERRY_UNLIKELY ((ctx_p->flags & RE_FLAG_GLOBAL) == 0 && (re_ctx.flags & RE_FLAG_STICKY) != 0))
   {
@@ -2681,7 +2329,6 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
     }
   }
   else
-#endif /* JERRY_ESNEXT */
   {
     index = 0;
   }
@@ -2698,7 +2345,7 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
     {
       if (ECMA_RE_STACK_LIMIT_REACHED (matched_p))
       {
-        result = ecma_raise_range_error (ECMA_ERR_MSG ("Stack limit exceeded"));
+        result = ecma_raise_range_error (ECMA_ERR_STACK_LIMIT_EXCEEDED);
         goto cleanup_builder;
       }
 
@@ -2729,10 +2376,8 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
         ecma_collection_push_back (arguments_p, ecma_make_string_value (string_p));
         ecma_object_t *function_p = ecma_get_object_from_value (replace_arg);
 
-        result = ecma_op_function_call (function_p,
-                                        ECMA_VALUE_UNDEFINED,
-                                        arguments_p->buffer_p,
-                                        arguments_p->item_count);
+        result =
+          ecma_op_function_call (function_p, ECMA_VALUE_UNDEFINED, arguments_p->buffer_p, arguments_p->item_count);
 
         ecma_collection_free (arguments_p);
 
@@ -2765,7 +2410,6 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
 
       if (!(ctx_p->flags & RE_FLAG_GLOBAL))
       {
-#if JERRY_ESNEXT
         if (JERRY_UNLIKELY ((re_ctx.flags & RE_FLAG_STICKY) != 0))
         {
           ecma_value_t index_value = ecma_make_length_value (index);
@@ -2781,7 +2425,6 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
             goto cleanup_builder;
           }
         }
-#endif /* JERRY_ESNEXT */
 
         break;
       }
@@ -2792,7 +2435,6 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
         continue;
       }
     }
-#if JERRY_ESNEXT
     else if (JERRY_UNLIKELY ((re_ctx.flags & RE_FLAG_STICKY) != 0))
     {
       result = ecma_op_object_put ((ecma_object_t *) re_obj_p,
@@ -2807,19 +2449,16 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
 
       break;
     }
-#endif /* JERRY_ESNEXT */
 
     if (current_p >= string_end_p)
     {
       break;
     }
 
-#if JERRY_ESNEXT
     if ((ctx_p->flags & RE_FLAG_UNICODE) != 0)
     {
       index++;
-      const lit_code_point_t cp = ecma_regexp_unicode_advance (&current_p,
-                                                               string_end_p);
+      const lit_code_point_t cp = ecma_regexp_unicode_advance (&current_p, string_end_p);
 
       if (cp > LIT_UTF16_CODE_UNIT_MAX)
       {
@@ -2828,7 +2467,6 @@ ecma_regexp_replace_helper_fast (ecma_replace_context_t *ctx_p, /**<replace cont
 
       continue;
     }
-#endif /* JERRY_ESNEXT */
 
     index++;
     lit_utf8_incr (&current_p);
@@ -2873,7 +2511,7 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
   /* 2. */
   if (!ecma_is_value_object (this_arg))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_OBJECT);
   }
 
   ecma_object_t *this_obj_p = ecma_get_object_from_value (this_arg);
@@ -2916,14 +2554,11 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
 
   ecma_free_value (result);
 
-#if JERRY_ESNEXT
   const lit_utf8_size_t string_length = ecma_string_get_length (string_p);
-#endif /* JERRY_ESNEXT */
 
   /* 10. */
   if (replace_ctx.flags & RE_FLAG_GLOBAL)
   {
-#if JERRY_ESNEXT
     result = ecma_op_object_get_by_magic_id (this_obj_p, LIT_MAGIC_STRING_UNICODE);
     if (ECMA_IS_VALUE_ERROR (result))
     {
@@ -2936,7 +2571,6 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
     }
 
     ecma_free_value (result);
-#endif /* JERRY_ESNEXT */
 
     result = ecma_op_object_put (this_obj_p,
                                  ecma_get_magic_string (LIT_MAGIC_STRING_LASTINDEX_UL),
@@ -2950,14 +2584,6 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
     JERRY_ASSERT (ecma_is_value_boolean (result));
   }
 
-#if !JERRY_ESNEXT
-  result = ecma_regexp_replace_helper_fast (&replace_ctx,
-                                            (ecma_extended_object_t *) this_obj_p,
-                                            string_p,
-                                            replace_arg);
-
-  goto cleanup_replace;
-#else /* JERRY_ESNEXT */
   result = ecma_op_object_get_by_magic_id (this_obj_p, LIT_MAGIC_STRING_EXEC);
 
   if (ECMA_IS_VALUE_ERROR (result))
@@ -2969,15 +2595,12 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
   if (ecma_op_is_callable (result))
   {
     ecma_extended_object_t *function_p = (ecma_extended_object_t *) ecma_get_object_from_value (result);
-    if (ecma_object_class_is (this_obj_p, ECMA_OBJECT_CLASS_REGEXP)
-        && ecma_builtin_is_regexp_exec (function_p))
+    if (ecma_object_class_is (this_obj_p, ECMA_OBJECT_CLASS_REGEXP) && ecma_builtin_is_regexp_exec (function_p))
     {
       ecma_deref_object ((ecma_object_t *) function_p);
 
-      result = ecma_regexp_replace_helper_fast (&replace_ctx,
-                                                (ecma_extended_object_t *) this_obj_p,
-                                                string_p,
-                                                replace_arg);
+      result =
+        ecma_regexp_replace_helper_fast (&replace_ctx, (ecma_extended_object_t *) this_obj_p, string_p, replace_arg);
 
       goto cleanup_replace;
     }
@@ -3005,7 +2628,7 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
       if (!ecma_is_value_object (result) && !ecma_is_value_null (result))
       {
         ecma_free_value (result);
-        result = ecma_raise_type_error (ECMA_ERR_MSG ("Return value of 'exec' must be an object or null"));
+        result = ecma_raise_type_error (ECMA_ERR_RETURN_VALUE_OF_EXEC_MUST_BE_AN_OBJECT_OR_NULL);
         goto cleanup_results;
       }
     }
@@ -3015,7 +2638,7 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
 
       if (!ecma_object_class_is (this_obj_p, ECMA_OBJECT_CLASS_REGEXP))
       {
-        result = ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not a valid RegExp object"));
+        result = ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_REG_EXP_OBJECT);
         goto cleanup_results;
       }
 
@@ -3079,10 +2702,7 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
       last_index = ecma_make_length_value (index);
 
       /* 10.d.iii.3.c */
-      result = ecma_op_object_put (this_obj_p,
-                                   ecma_get_magic_string (LIT_MAGIC_STRING_LASTINDEX_UL),
-                                   last_index,
-                                   true);
+      result = ecma_op_object_put (this_obj_p, ecma_get_magic_string (LIT_MAGIC_STRING_LASTINDEX_UL), last_index, true);
 
       ecma_free_value (last_index);
 
@@ -3103,11 +2723,7 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
   }
 
   uint8_t string_flags = ECMA_STRING_FLAG_IS_ASCII;
-  replace_ctx.string_p = ecma_string_get_chars (string_p,
-                                                &(replace_ctx.string_size),
-                                                NULL,
-                                                NULL,
-                                                &string_flags);
+  replace_ctx.string_p = ecma_string_get_chars (string_p, &(replace_ctx.string_size), NULL, NULL, &string_flags);
 
   /* 14. */
   replace_ctx.builder = ecma_stringbuilder_create ();
@@ -3120,8 +2736,7 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
   const lit_utf8_byte_t *const string_end_p = replace_ctx.string_p + replace_ctx.string_size;
 
   /* 16. */
-  for (ecma_value_t *current_p = results_p->buffer_p;
-       current_p < results_p->buffer_p + results_p->item_count;
+  for (ecma_value_t *current_p = results_p->buffer_p; current_p < results_p->buffer_p + results_p->item_count;
        current_p++)
   {
     /* 16.a */
@@ -3236,8 +2851,8 @@ ecma_regexp_replace_helper (ecma_value_t this_arg, /**< this argument */
       }
 
       ecma_stringbuilder_append_raw (&replace_ctx.builder,
-                                    source_position_p,
-                                    (lit_utf8_size_t) (match_position_p - source_position_p));
+                                     source_position_p,
+                                     (lit_utf8_size_t) (match_position_p - source_position_p));
       replace_ctx.match_byte_pos = (lit_utf8_size_t) (match_position_p - replace_ctx.string_p);
 
       if ((string_flags & ECMA_STRING_FLAG_IS_ASCII) && matched_str_size == matched_str_length)
@@ -3333,7 +2948,6 @@ cleanup_chars:
 
 cleanup_results:
   ecma_collection_free (results_p);
-#endif /* !JERRY_ESNEXT */
 
 cleanup_replace:
   if (replace_ctx.replace_str_p != NULL)
@@ -3362,7 +2976,7 @@ ecma_regexp_match_helper (ecma_value_t this_arg, /**< this argument */
 {
   if (!ecma_is_value_object (this_arg))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_OBJECT);
   }
 
   ecma_string_t *str_p = ecma_op_to_string (string_arg);
@@ -3393,7 +3007,6 @@ ecma_regexp_match_helper (ecma_value_t this_arg, /**< this argument */
     return result;
   }
 
-#if JERRY_ESNEXT
   ecma_value_t full_unicode_value = ecma_op_object_get_by_magic_id (obj_p, LIT_MAGIC_STRING_UNICODE);
 
   if (ECMA_IS_VALUE_ERROR (full_unicode_value))
@@ -3405,12 +3018,9 @@ ecma_regexp_match_helper (ecma_value_t this_arg, /**< this argument */
   bool full_unicode = ecma_op_to_boolean (full_unicode_value);
 
   ecma_free_value (full_unicode_value);
-#endif /* JERRY_ESNEXT */
 
-  ecma_value_t set_status = ecma_op_object_put (obj_p,
-                                                ecma_get_magic_string (LIT_MAGIC_STRING_LASTINDEX_UL),
-                                                ecma_make_uint32_value (0),
-                                                true);
+  ecma_value_t set_status =
+    ecma_op_object_put (obj_p, ecma_get_magic_string (LIT_MAGIC_STRING_LASTINDEX_UL), ecma_make_uint32_value (0), true);
 
   if (ECMA_IS_VALUE_ERROR (set_status))
   {
@@ -3480,7 +3090,6 @@ ecma_regexp_match_helper (ecma_value_t this_arg, /**< this argument */
         goto result_cleanup;
       }
 
-#if JERRY_ESNEXT
       ecma_length_t index;
       ecma_value_t length_value = ecma_op_to_length (last_index, &index);
 
@@ -3494,21 +3103,9 @@ ecma_regexp_match_helper (ecma_value_t this_arg, /**< this argument */
       index = ecma_op_advance_string_index (str_p, index, full_unicode);
 
       last_index = ecma_make_length_value (index);
-      ecma_value_t next_set_status = ecma_op_object_put (obj_p,
-                                                         ecma_get_magic_string (LIT_MAGIC_STRING_LASTINDEX_UL),
-                                                         ecma_make_length_value (index),
-                                                         true);
-#else /* !JERRY_ESNEXT */
-      ecma_number_t index = ecma_get_number_from_value (last_index);
-      ecma_free_value (last_index);
+      ecma_value_t next_set_status =
+        ecma_op_object_put (obj_p, ecma_get_magic_string (LIT_MAGIC_STRING_LASTINDEX_UL), last_index, true);
 
-      last_index = ecma_make_number_value (index + 1);
-      ecma_value_t next_set_status = ecma_op_object_put (obj_p,
-                                                         ecma_get_magic_string (LIT_MAGIC_STRING_LASTINDEX_UL),
-                                                         last_index,
-                                                         true);
-
-#endif /* JERRY_ESNEXT */
       ecma_free_value (last_index);
 
       if (ECMA_IS_VALUE_ERROR (next_set_status))
@@ -3541,7 +3138,6 @@ ecma_op_regexp_exec (ecma_value_t this_arg, /**< this argument */
 {
   ecma_object_t *arg_obj_p = ecma_get_object_from_value (this_arg);
 
-#if JERRY_ESNEXT
   ecma_value_t exec = ecma_op_object_get_by_magic_id (arg_obj_p, LIT_MAGIC_STRING_EXEC);
 
   if (ECMA_IS_VALUE_ERROR (exec))
@@ -3566,7 +3162,7 @@ ecma_op_regexp_exec (ecma_value_t this_arg, /**< this argument */
     if (!ecma_is_value_object (result) && !ecma_is_value_null (result))
     {
       ecma_free_value (result);
-      return ecma_raise_type_error (ECMA_ERR_MSG ("Return value of 'exec' must be an object or null"));
+      return ecma_raise_type_error (ECMA_ERR_RETURN_VALUE_OF_EXEC_MUST_BE_AN_OBJECT_OR_NULL);
     }
 
     return result;
@@ -3575,11 +3171,10 @@ ecma_op_regexp_exec (ecma_value_t this_arg, /**< this argument */
   {
     ecma_free_value (exec);
   }
-#endif /* JERRY_ESNEXT */
 
   if (!ecma_object_is_regexp_object (this_arg))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not a valid RegExp"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_REG_EXP);
   }
 
   return ecma_regexp_exec_helper (arg_obj_p, str_p);

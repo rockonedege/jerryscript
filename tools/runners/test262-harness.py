@@ -16,8 +16,7 @@
 
 
 # This file is based on work under the following copyright and permission notice:
-# https://github.com/test262-utils/test262-harness-py
-# test262.py, _monkeyYaml.py, parseTestRecord.py
+# https://github.com/test262-utils/test262-harness-py/blob/master/src/test262.py
 
 # license of test262.py:
 # Copyright 2009 the Sputnik authors.  All rights reserved.
@@ -31,19 +30,9 @@
 # Copyright (c) 2012 Ecma International.  All rights reserved.
 # This code is governed by the BSD license found in the LICENSE file.
 
-# license of _monkeyYaml.py:
-# Copyright 2014 by Sam Mikes.  All rights reserved.
-# This code is governed by the BSD license found in the LICENSE file.
-
-# license of parseTestRecord.py:
-# Copyright 2011 by Google, Inc.  All rights reserved.
-# This code is governed by the BSD license found in the LICENSE file.
-
-
-from __future__ import print_function
 
 import logging
-import optparse
+import argparse
 import os
 from os import path
 import platform
@@ -55,278 +44,17 @@ import xml.dom.minidom
 from collections import Counter
 
 import signal
-import threading
 import multiprocessing
 
-#######################################################################
-# based on _monkeyYaml.py
-#######################################################################
-
-M_YAML_LIST_PATTERN = re.compile(r"^\[(.*)\]$")
-M_YAML_MULTILINE_LIST = re.compile(r"^ *- (.*)$")
-
+import util
 
 # The timeout of each test case
 TEST262_CASE_TIMEOUT = 180
 
-
-def yaml_load(string):
-    return my_read_dict(string.splitlines())[1]
-
-
-def my_read_dict(lines, indent=""):
-    dictionary = {}
-    key = None
-    empty_lines = 0
-
-    while lines:
-        if not lines[0].startswith(indent):
-            break
-
-        line = lines.pop(0)
-        if my_is_all_spaces(line):
-            empty_lines += 1
-            continue
-
-        result = re.match(r"(.*?):(.*)", line)
-
-        if result:
-            if not dictionary:
-                dictionary = {}
-            key = result.group(1).strip()
-            value = result.group(2).strip()
-            (lines, value) = my_read_value(lines, value, indent)
-            dictionary[key] = value
-        else:
-            if dictionary and key and key in dictionary:
-                char = " " if empty_lines == 0 else "\n" * empty_lines
-                dictionary[key] += char + line.strip()
-            else:
-                raise Exception("monkeyYaml is confused at " + line)
-        empty_lines = 0
-
-    if not dictionary:
-        dictionary = None
-
-    return lines, dictionary
-
-
-def my_read_value(lines, value, indent):
-    if value == ">" or value == "|":
-        (lines, value) = my_multiline(lines, value == "|")
-        value = value + "\n"
-        return (lines, value)
-    if lines and not value:
-        if my_maybe_list(lines[0]):
-            return my_multiline_list(lines, value)
-        indent_match = re.match("(" + indent + r"\s+)", lines[0])
-        if indent_match:
-            if ":" in lines[0]:
-                return my_read_dict(lines, indent_match.group(1))
-            return my_multiline(lines, False)
-    return lines, my_read_one_line(value)
-
-
-def my_maybe_list(value):
-    return M_YAML_MULTILINE_LIST.match(value)
-
-
-def my_multiline_list(lines, value):
-    # assume no explcit indentor (otherwise have to parse value)
-    value = []
-    indent = 0
-    while lines:
-        line = lines.pop(0)
-        leading = my_leading_spaces(line)
-        if my_is_all_spaces(line):
-            pass
-        elif leading < indent:
-            lines.insert(0, line)
-            break
-        else:
-            indent = indent or leading
-            value += [my_read_one_line(my_remove_list_header(indent, line))]
-    return (lines, value)
-
-
-def my_remove_list_header(indent, line):
-    line = line[indent:]
-    return M_YAML_MULTILINE_LIST.match(line).group(1)
-
-
-def my_read_one_line(value):
-    if M_YAML_LIST_PATTERN.match(value):
-        return my_flow_list(value)
-    elif re.match(r"^[-0-9]*$", value):
-        try:
-            value = int(value)
-        except ValueError:
-            pass
-    elif re.match(r"^[-.0-9eE]*$", value):
-        try:
-            value = float(value)
-        except ValueError:
-            pass
-    elif re.match(r"^('|\").*\1$", value):
-        value = value[1:-1]
-    return value
-
-
-def my_flow_list(value):
-    result = M_YAML_LIST_PATTERN.match(value)
-    values = result.group(1).split(",")
-    return [my_read_one_line(v.strip()) for v in values]
-
-
-def my_multiline(lines, preserve_newlines=False):
-    # assume no explcit indentor (otherwise have to parse value)
-    value = ""
-    indent = my_leading_spaces(lines[0])
-    was_empty = None
-
-    while lines:
-        line = lines.pop(0)
-        is_empty = my_is_all_spaces(line)
-
-        if is_empty:
-            if preserve_newlines:
-                value += "\n"
-        elif my_leading_spaces(line) < indent:
-            lines.insert(0, line)
-            break
-        else:
-            if preserve_newlines:
-                if was_empty != None:
-                    value += "\n"
-            else:
-                if was_empty:
-                    value += "\n"
-                elif was_empty is False:
-                    value += " "
-            value += line[(indent):]
-
-        was_empty = is_empty
-
-    return (lines, value)
-
-
-def my_is_all_spaces(line):
-    return len(line.strip()) == 0
-
-
-def my_leading_spaces(line):
-    return len(line) - len(line.lstrip(' '))
-
-
-#######################################################################
-# based on parseTestRecord.py
-#######################################################################
-
-# Matches trailing whitespace and any following blank lines.
-_BLANK_LINES = r"([ \t]*[\r\n]{1,2})*"
-
-# Matches the YAML frontmatter block.
-# It must be non-greedy because test262-es2015/built-ins/Object/assign/Override.js contains a comment like yaml pattern
-_YAML_PATTERN = re.compile(r"/\*---(.*?)---\*/" + _BLANK_LINES, re.DOTALL)
-
-# Matches all known variants for the license block.
-# https://github.com/tc39/test262/blob/705d78299cf786c84fa4df473eff98374de7135a/tools/lint/lib/checks/license.py
-_LICENSE_PATTERN = re.compile(
-    r'// Copyright( \([C]\))? (\w+) .+\. {1,2}All rights reserved\.[\r\n]{1,2}' +
-    r'(' +
-    r'// This code is governed by the( BSD)? license found in the LICENSE file\.' +
-    r'|' +
-    r'// See LICENSE for details.' +
-    r'|' +
-    r'// Use of this source code is governed by a BSD-style license that can be[\r\n]{1,2}' +
-    r'// found in the LICENSE file\.' +
-    r'|' +
-    r'// See LICENSE or https://github\.com/tc39/test262/blob/master/LICENSE' +
-    r')' + _BLANK_LINES, re.IGNORECASE)
-
-
-def yaml_attr_parser(test_record, attrs, name, onerror=print):
-    parsed = yaml_load(attrs)
-    if parsed is None:
-        onerror("Failed to parse yaml in name %s" % name)
-        return
-
-    for key in parsed:
-        value = parsed[key]
-        if key == "info":
-            key = "commentary"
-        test_record[key] = value
-
-    if 'flags' in test_record:
-        for flag in test_record['flags']:
-            test_record[flag] = ""
-
-
-def find_license(src):
-    match = _LICENSE_PATTERN.search(src)
-    if not match:
-        return None
-
-    return match.group(0)
-
-
-def find_attrs(src):
-    match = _YAML_PATTERN.search(src)
-    if not match:
-        return (None, None)
-
-    return (match.group(0), match.group(1).strip())
-
-
-def parse_test_record(src, name, onerror=print):
-    # Find the license block.
-    header = find_license(src)
-
-    # Find the YAML frontmatter.
-    (frontmatter, attrs) = find_attrs(src)
-
-    # YAML frontmatter is required for all tests.
-    if frontmatter is None:
-        onerror("Missing frontmatter: %s" % name)
-
-    # The license shuold be placed before the frontmatter and there shouldn't be
-    # any extra content between the license and the frontmatter.
-    if header is not None and frontmatter is not None:
-        header_idx = src.index(header)
-        frontmatter_idx = src.index(frontmatter)
-        if header_idx > frontmatter_idx:
-            onerror("Unexpected license after frontmatter: %s" % name)
-
-        # Search for any extra test content, but ignore whitespace only or comment lines.
-        extra = src[header_idx + len(header): frontmatter_idx]
-        if extra and any(line.strip() and not line.lstrip().startswith("//") for line in extra.split("\n")):
-            onerror(
-                "Unexpected test content between license and frontmatter: %s" % name)
-
-    # Remove the license and YAML parts from the actual test content.
-    test = src
-    if frontmatter is not None:
-        test = test.replace(frontmatter, '')
-    if header is not None:
-        test = test.replace(header, '')
-
-    test_record = {}
-    test_record['header'] = header.strip() if header else ''
-    test_record['test'] = test
-
-    if attrs:
-        yaml_attr_parser(test_record, attrs, name, onerror)
-
-    # Report if the license block is missing in non-generated tests.
-    if header is None and "generated" not in test_record and "hashbang" not in name:
-        onerror("No license found in: %s" % name)
-
-    return test_record
-
-
-#######################################################################
-# based on test262.py
-#######################################################################
+TEST_RE = re.compile(r"(?P<test1>.*)\/\*---(?P<header>.+)---\*\/(?P<test2>.*)", re.DOTALL)
+YAML_INCLUDES_RE = re.compile(r"includes:\s+\[(?P<includes>.+)\]")
+YAML_FLAGS_RE = re.compile(r"flags:\s+\[(?P<flags>.+)\]")
+YAML_NEGATIVE_RE = re.compile(r"negative:.*phase:\s+(?P<phase>\w+).*type:\s+(?P<type>\w+)", re.DOTALL)
 
 class Test262Error(Exception):
     def __init__(self, message):
@@ -339,36 +67,37 @@ def report_error(error_string):
 
 
 def build_options():
-    result = optparse.OptionParser()
-    result.add_option("--command", default=None,
-                      help="The command-line to run")
-    result.add_option("--tests", default=path.abspath('.'),
-                      help="Path to the tests")
-    result.add_option("--exclude-list", default=None,
-                      help="Path to the excludelist.xml file")
-    result.add_option("--cat", default=False, action="store_true",
-                      help="Print packaged test code that would be run")
-    result.add_option("--summary", default=False, action="store_true",
-                      help="Print summary after running tests")
-    result.add_option("--full-summary", default=False, action="store_true",
-                      help="Print summary and test output after running tests")
-    result.add_option("--strict_only", default=False, action="store_true",
-                      help="Test only strict mode")
-    result.add_option("--non_strict_only", default=False, action="store_true",
-                      help="Test only non-strict mode")
-    result.add_option("--unmarked_default", default="both",
-                      help="default mode for tests of unspecified strictness")
-    result.add_option("-j", "--job-count", default=None, action="store", type=int,
-                      help="Number of parallel test jobs to run. In case of '0' cpu count is used.")
-    result.add_option("--logname", help="Filename to save stdout to")
-    result.add_option("--loglevel", default="warning",
-                      help="sets log level to debug, info, warning, error, or critical")
-    result.add_option("--print-handle", default="print",
-                      help="Command to print from console")
-    result.add_option("--list-includes", default=False, action="store_true",
-                      help="List includes required by tests")
-    result.add_option("--module-flag", default="-m",
-                      help="List includes required by tests")
+    result = argparse.ArgumentParser()
+    result.add_argument("--command", default=None,
+                        help="The command-line to run")
+    result.add_argument("--tests", default=path.abspath('.'),
+                        help="Path to the tests")
+    result.add_argument("--exclude-list", default=None,
+                        help="Path to the excludelist.xml file")
+    result.add_argument("--cat", default=False, action="store_true",
+                        help="Print packaged test code that would be run")
+    result.add_argument("--summary", default=False, action="store_true",
+                        help="Print summary after running tests")
+    result.add_argument("--full-summary", default=False, action="store_true",
+                        help="Print summary and test output after running tests")
+    result.add_argument("--strict_only", default=False, action="store_true",
+                        help="Test only strict mode")
+    result.add_argument("--non_strict_only", default=False, action="store_true",
+                        help="Test only non-strict mode")
+    result.add_argument("--unmarked_default", default="both",
+                        help="default mode for tests of unspecified strictness")
+    result.add_argument("-j", "--job-count", default=None, action="store", type=int,
+                        help="Number of parallel test jobs to run. In case of '0' cpu count is used.")
+    result.add_argument("--logname", help="Filename to save stdout to")
+    result.add_argument("--loglevel", default="warning",
+                        help="sets log level to debug, info, warning, error, or critical")
+    result.add_argument("--print-handle", default="print",
+                        help="Command to print from console")
+    result.add_argument("--list-includes", default=False, action="store_true",
+                        help="List includes required by tests")
+    result.add_argument("--module-flag", default="-m",
+                        help="List includes required by tests")
+    result.add_argument("test_list", nargs='*', default=None)
     return result
 
 
@@ -376,15 +105,15 @@ def validate_options(options):
     if not options.command:
         report_error("A --command must be specified.")
     if not path.exists(options.tests):
-        report_error("Couldn't find test path '%s'" % options.tests)
+        report_error(f"Couldn't find test path '{options.tests}'")
 
 
 def is_windows():
     actual_platform = platform.system()
-    return (actual_platform == 'Windows') or (actual_platform == 'Microsoft')
+    return actual_platform in ('Windows', 'Microsoft')
 
 
-class TempFile(object):
+class TempFile:
 
     def __init__(self, suffix="", prefix="tmp", text=False):
         self.suffix = suffix
@@ -402,13 +131,11 @@ class TempFile(object):
             text=self.text)
 
     def write(self, string):
-        os.write(self.file_desc, string)
+        os.write(self.file_desc, string.encode('utf8', 'ignore'))
 
     def read(self):
-        file_desc = file(self.name)
-        result = file_desc.read()
-        file_desc.close()
-        return result
+        with open(self.name, "r", newline='', encoding='utf8', errors='ignore') as file_desc:
+            return file_desc.read()
 
     def close(self):
         if not self.is_closed:
@@ -419,11 +146,11 @@ class TempFile(object):
         try:
             self.close()
             os.unlink(self.name)
-        except OSError as exception:
-            logging.error("Error disposing temp file: %s", str(exception))
+        except OSError as os_error:
+            logging.error("Error disposing temp file: %s", os_error)
 
 
-class TestResult(object):
+class TestResult:
 
     def __init__(self, exit_code, stdout, stderr, case):
         self.exit_code = exit_code
@@ -435,37 +162,36 @@ class TestResult(object):
         name = self.case.get_name()
         mode = self.case.get_mode()
 
-        if self.exit_code != 0 and self.exit_code != 1:
-            sys.stderr.write(u"===%s failed in %s with negative:%s===\n"
-                             % (name, mode, self.case.get_negative_type()))
+        if self.exit_code not in (0, 1):
+            sys.stderr.write(f"==={name} failed in {mode} with negative:{self.case.get_negative_type()}===\n")
             self.write_output(sys.stderr)
 
         if self.has_unexpected_outcome():
             if self.case.is_negative():
-                print("=== %s passed in %s, but was expected to fail ===" % (name, mode))
-                print("--- expected error: %s ---\n" % self.case.get_negative_type())
+                print(f"=== {name} passed in {mode}, but was expected to fail ===")
+                print(f"--- expected error: {self.case.get_negative_type()} ---\n")
             else:
                 if long_format:
-                    print("=== %s failed in %s ===" % (name, mode))
+                    print(f"=== {name} failed in {mode} ===")
                 else:
-                    print("%s in %s: " % (name, mode))
+                    print(f"{name} in {mode}: ")
             self.write_output(sys.stdout)
             if long_format:
                 print("===")
         elif self.case.is_negative():
-            print("%s failed in %s as expected" % (name, mode))
+            print(f"{name} failed in {mode} as expected")
         else:
-            print("%s passed in %s" % (name, mode))
+            print(f"{name} passed in {mode}")
 
     def write_output(self, target):
         out = self.stdout.strip()
         if out:
-            target.write("--- output --- \n %s" % out)
+            target.write(f"--- output --- \n {out}")
         error = self.stderr.strip()
         if error:
-            target.write("--- errors ---  \n %s" % error)
+            target.write(f"--- errors ---  \n {error}")
 
-        target.write("\n--- exit code: %d ---\n" % self.exit_code)
+        target.write(f"\n--- exit code: {self.exit_code} ---\n")
 
     def has_failed(self):
         return self.exit_code != 0
@@ -488,25 +214,41 @@ class TestResult(object):
         return self.stdout
 
 
-class TestCase(object):
+class TestCase:
 
     def __init__(self, suite, name, full_path, strict_mode, command_template, module_flag):
         self.suite = suite
         self.name = name
         self.full_path = full_path
         self.strict_mode = strict_mode
-        with open(self.full_path) as file_desc:
-            self.contents = file_desc.read()
-        test_record = parse_test_record(self.contents, name)
-        self.test = test_record["test"]
-        del test_record["test"]
-        del test_record["header"]
-        test_record.pop("commentary", None)    # do not throw if missing
-        self.test_record = test_record
         self.command_template = command_template
         self.module_flag = module_flag
-
+        self.test_record = {}
+        self.parse_test_record()
         self.validate()
+
+    def parse_test_record(self):
+        with open(self.full_path, "r", newline='', encoding='utf8', errors='ignore') as file_desc:
+            full_test = file_desc.read()
+
+        match = TEST_RE.search(full_test)
+        header = match.group("header")
+        self.test = match.group("test1") + match.group("test2")
+
+        match = YAML_INCLUDES_RE.search(header)
+
+        if match:
+            self.test_record["includes"] = [inc.strip() for inc in match.group("includes").split(",") if inc]
+
+        match = YAML_FLAGS_RE.search(header)
+        self.test_record["flags"] = [flag.strip() for flag in match.group("flags").split(",") if flag] if match else []
+
+        match = YAML_NEGATIVE_RE.search(header)
+        if match:
+            self.test_record["negative"] = {
+                "phase" : match.group("phase"),
+                "type" : match.group("type")
+            }
 
     def negative_match(self, stderr):
         neg = re.compile(self.get_negative_type())
@@ -542,19 +284,19 @@ class TestCase(object):
         return 'negative' in self.test_record
 
     def is_only_strict(self):
-        return 'onlyStrict' in self.test_record
+        return 'onlyStrict' in self.test_record["flags"]
 
     def is_no_strict(self):
-        return 'noStrict' in self.test_record or self.is_raw()
+        return 'noStrict' in self.test_record["flags"] or self.is_raw()
 
     def is_raw(self):
-        return 'raw' in self.test_record
+        return 'raw' in self.test_record["flags"]
 
     def is_async_test(self):
-        return 'async' in self.test_record or '$DONE' in self.test
+        return 'async' in self.test_record["flags"] or '$DONE' in self.test
 
     def is_module(self):
-        return 'module' in self.test_record
+        return 'module' in self.test_record["flags"]
 
     def get_include_list(self):
         if self.test_record.get('includes'):
@@ -604,25 +346,25 @@ class TestCase(object):
     @staticmethod
     def execute(command):
         if is_windows():
-            args = '%s' % command
+            args = f'{command}'
         else:
             args = command.split(" ")
         stdout = TempFile(prefix="test262-out-")
         stderr = TempFile(prefix="test262-err-")
         try:
             logging.info("exec: %s", str(args))
-            process = subprocess.Popen(
+            with subprocess.Popen(
                 args,
                 shell=False,
                 stdout=stdout.file_desc,
                 stderr=stderr.file_desc
-            )
-            timer = threading.Timer(TEST262_CASE_TIMEOUT, process.kill)
-            timer.start()
-            code = process.wait()
-            timer.cancel()
-            out = stdout.read()
-            err = stderr.read()
+            ) as process:
+                try:
+                    code = process.wait(timeout=TEST262_CASE_TIMEOUT)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                out = stdout.read()
+                err = stderr.read()
         finally:
             stdout.dispose()
             stderr.dispose()
@@ -645,7 +387,7 @@ class TestCase(object):
         return TestResult(code, out, err, self)
 
     def run(self):
-        tmp = TempFile(suffix=".js", prefix="test262-", text=True)
+        tmp = TempFile(suffix=".js", prefix="test262-")
         try:
             result = self.run_test_in(tmp)
         finally:
@@ -668,10 +410,10 @@ class TestCase(object):
         if 'raw' in flags:
             if 'noStrict' in flags:
                 raise TypeError("The `raw` flag implies the `noStrict` flag")
-            elif 'onlyStrict' in flags:
+            if 'onlyStrict' in flags:
                 raise TypeError(
                     "The `raw` flag is incompatible with the `onlyStrict` flag")
-            elif self.get_include_list():
+            if self.get_include_list():
                 raise TypeError(
                     "The `raw` flag is incompatible with the `includes` tag")
 
@@ -685,7 +427,7 @@ def test_case_run_process(case):
     return case.run()
 
 
-class ProgressIndicator(object):
+class ProgressIndicator:
 
     def __init__(self, count):
         self.count = count
@@ -702,18 +444,11 @@ class ProgressIndicator(object):
             self.succeeded += 1
 
 
-def make_plural(num):
-    if num == 1:
-        return (num, "")
-    return (num, "s")
-
-
 def percent_format(partial, total):
-    return "%i test%s (%.1f%%)" % (make_plural(partial) +
-                                   ((100.0 * partial)/total,))
+    return f"{partial} test{'s' if partial > 1 else ''} ({(100.0 * partial)/total:.1f}%)"
 
 
-class TestSuite(object):
+class TestSuite:
 
     def __init__(self, options):
         self.test_root = path.join(options.tests, 'test')
@@ -754,7 +489,7 @@ class TestSuite(object):
         if not tests:
             return True
         for test in tests:
-            if test in rel_path:
+            if os.path.normpath(test) in os.path.normpath(rel_path):
                 return True
         return False
 
@@ -762,7 +497,7 @@ class TestSuite(object):
         if not name in self.include_cache:
             static = path.join(self.lib_root, name)
             if path.exists(static):
-                with open(static) as file_desc:
+                with open(static, encoding='utf8', errors='ignore') as file_desc:
                     contents = file_desc.read()
                     contents = re.sub(r'\r\n', '\n', contents)
                     self.include_cache[name] = contents + "\n"
@@ -817,7 +552,7 @@ class TestSuite(object):
         count = progress.count
         succeeded = progress.succeeded
         failed = progress.failed
-        write(" - Ran %i test%s" % make_plural(count))
+        write(f" - Ran {count} test{'s' if count > 1 else ''}")
         if progress.failed == 0:
             write(" - All tests succeeded")
         else:
@@ -829,12 +564,12 @@ class TestSuite(object):
                 print("")
                 write("Failed Tests")
                 for result in positive:
-                    write("  %s in %s" % (result.case.get_name(), result.case.get_mode()))
+                    write(f"  {result.case.get_name()} in {result.case.get_mode()}")
             if negative:
                 print("")
                 write("Expected to fail but passed ---")
                 for result in negative:
-                    write("  %s in %s" % (result.case.get_name(), result.case.get_mode()))
+                    write(f"  {result.case.get_name()} in {result.case.get_mode()}")
 
     def print_failure_output(self, progress, logfile):
         for result in progress.failed_tests:
@@ -851,7 +586,7 @@ class TestSuite(object):
             report_error("No tests to run")
         progress = ProgressIndicator(len(cases))
         if logname:
-            self.logf = open(logname, "w")
+            self.logf = open(logname, "w", encoding='utf8', errors='ignore')  # pylint: disable=consider-using-with
 
         if job_count == 1:
             for case in cases:
@@ -863,15 +598,11 @@ class TestSuite(object):
             if job_count == 0:
                 job_count = None # uses multiprocessing.cpu_count()
 
-            pool = multiprocessing.Pool(processes=job_count, initializer=pool_init)
-            try:
+            with multiprocessing.Pool(processes=job_count, initializer=pool_init) as pool:
                 for result in pool.imap(test_case_run_process, cases):
                     if logname:
                         self.write_log(result)
                     progress.has_run(result)
-            except KeyboardInterrupt:
-                pool.terminate()
-                pool.join()
 
         if print_summary:
             self.print_summary(progress, logname)
@@ -889,17 +620,17 @@ class TestSuite(object):
         if result.has_unexpected_outcome():
             if result.case.is_negative():
                 self.logf.write(
-                    "=== %s passed in %s, but was expected to fail === \n" % (name, mode))
-                self.logf.write("--- expected error: %s ---\n" % result.case.GetNegativeType())
+                    f"=== {name} passed in {mode}, but was expected to fail === \n")
+                self.logf.write(f"--- expected error: {result.case.GetNegativeType()} ---\n")
                 result.write_output(self.logf)
             else:
-                self.logf.write("=== %s failed in %s === \n" % (name, mode))
+                self.logf.write(f"=== {name} failed in {mode} === \n")
                 result.write_output(self.logf)
             self.logf.write("===\n")
         elif result.case.is_negative():
-            self.logf.write("%s failed in %s as expected \n" % (name, mode))
+            self.logf.write(f"{name} failed in {mode} as expected \n")
         else:
-            self.logf.write("%s passed in %s \n" % (name, mode))
+            self.logf.write(f"{name} passed in {mode} \n")
 
     def print_source(self, tests):
         cases = self.enumerate_tests(tests, "")
@@ -917,9 +648,11 @@ class TestSuite(object):
 
 
 def main():
+    util.setup_stdio()
     code = 0
     parser = build_options()
-    (options, args) = parser.parse_args()
+    options = parser.parse_args()
+    args = options.test_list
     validate_options(options)
 
     test_suite = TestSuite(options)
@@ -953,5 +686,5 @@ if __name__ == '__main__':
     try:
         sys.exit(main())
     except Test262Error as exception:
-        print("Error: %s" % exception.message)
+        print(f"Error: {exception.message}")
         sys.exit(1)

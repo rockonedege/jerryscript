@@ -18,6 +18,7 @@
  */
 
 #include "jerryscript.h"
+
 #include "jerryscript-ext/handle-scope.h"
 #include "test-common.h"
 
@@ -32,8 +33,7 @@ native_free_cb (void *native_p, /**< native pointer */
   ++native_free_cb_call_count;
 } /* native_free_cb */
 
-static const jerry_object_native_info_t native_info =
-{
+static const jerry_object_native_info_t native_info = {
   .free_cb = native_free_cb,
   .number_of_references = 0,
   .offset_of_references = 0,
@@ -44,8 +44,8 @@ create_object (void)
 {
   jerryx_escapable_handle_scope scope;
   jerryx_open_escapable_handle_scope (&scope);
-  jerry_value_t obj = jerryx_create_handle (jerry_create_object ());
-  jerry_set_object_native_pointer (obj, NULL, &native_info);
+  jerry_value_t obj = jerryx_create_handle (jerry_object ());
+  jerry_object_set_native_ptr (obj, &native_info, NULL);
 
   // If leaves `escaped` uninitialized, there will be a style error on linux thrown by compiler
   jerry_value_t escaped = 0;
@@ -65,7 +65,7 @@ test_handle_scope_val (void)
   jerry_value_t obj = create_object ();
   (void) obj;
 
-  jerry_gc (JERRY_GC_PRESSURE_LOW);
+  jerry_heap_gc (JERRY_GC_PRESSURE_LOW);
   TEST_ASSERT (native_free_cb_call_count == 0);
 
   jerryx_close_handle_scope (scope);
@@ -79,7 +79,7 @@ main (void)
   native_free_cb_call_count = 0;
   test_handle_scope_val ();
 
-  jerry_gc (JERRY_GC_PRESSURE_LOW);
+  jerry_heap_gc (JERRY_GC_PRESSURE_LOW);
   TEST_ASSERT (native_free_cb_call_count == 1);
 
   jerry_cleanup ();

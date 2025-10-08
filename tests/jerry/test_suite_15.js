@@ -1175,7 +1175,7 @@
 
 (function tc_15_07_04_02__001() {
   var a = Number(0.1);
-  assert(a.toString(36) === "0.3llllllllllqsn8td1p464unmi");
+  assert(a.toString(36) === "0.3lllllllllm");
 })();
 
 (function tc_15_07_04_02__013() {
@@ -2459,4 +2459,10 @@
 (function tc_15_04_02_01__002() {
   var a = new Array(1, 2, 5);
   assert(a.length === 3);
+})();
+
+(function tc_15_03_04_02__001() {
+  assert(Function.prototype.toString.hasOwnProperty('length'));
+  assert(delete Function.prototype.toString.length);
+  assert(!Function.prototype.toString.hasOwnProperty('length'));
 })();

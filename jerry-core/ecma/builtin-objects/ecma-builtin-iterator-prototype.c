@@ -17,8 +17,6 @@
 #include "ecma-builtins.h"
 #include "ecma-iterator-object.h"
 
-#if JERRY_ESNEXT
-
 #define ECMA_BUILTINS_INTERNAL
 #include "ecma-builtins-internal.h"
 
@@ -37,7 +35,7 @@ enum
 };
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-iterator-prototype.inc.h"
-#define BUILTIN_UNDERSCORED_ID iterator_prototype
+#define BUILTIN_UNDERSCORED_ID  iterator_prototype
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -102,5 +100,3 @@ ecma_builtin_iterator_prototype_dispatch_routine (uint8_t builtin_routine_id, /*
  * @}
  * @}
  */
-
-#endif /* JERRY_ESNEXT */

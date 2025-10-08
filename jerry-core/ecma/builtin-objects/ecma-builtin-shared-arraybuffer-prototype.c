@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+#include "ecma-arraybuffer-object.h"
 #include "ecma-builtin-helpers.h"
 #include "ecma-builtins.h"
 #include "ecma-conversion.h"
@@ -23,9 +24,9 @@
 #include "ecma-helpers.h"
 #include "ecma-objects.h"
 #include "ecma-shared-arraybuffer-object.h"
-#include "ecma-arraybuffer-object.h"
-#include "jrt.h"
+
 #include "jrt-libc-includes.h"
+#include "jrt.h"
 
 #if JERRY_BUILTIN_SHAREDARRAYBUFFER
 
@@ -33,7 +34,7 @@
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-shared-arraybuffer-prototype.inc.h"
-#define BUILTIN_UNDERSCORED_ID shared_arraybuffer_prototype
+#define BUILTIN_UNDERSCORED_ID  shared_arraybuffer_prototype
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -70,7 +71,7 @@ ecma_builtin_shared_arraybuffer_prototype_bytelength_getter (ecma_value_t this_a
     }
   }
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not a SharedArrayBuffer object"));
+  return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_SHARED_ARRAY_BUFFER);
 } /* ecma_builtin_shared_arraybuffer_prototype_bytelength_getter */
 
 /**
@@ -89,7 +90,7 @@ ecma_builtin_shared_arraybuffer_prototype_object_slice (ecma_value_t this_arg, /
 {
   if (!ecma_is_value_object (this_arg))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_OBJECT);
   }
 
   ecma_object_t *object_p = ecma_get_object_from_value (this_arg);
@@ -97,7 +98,7 @@ ecma_builtin_shared_arraybuffer_prototype_object_slice (ecma_value_t this_arg, /
   /* 2. */
   if (!ecma_object_class_is (object_p, ECMA_OBJECT_CLASS_SHARED_ARRAY_BUFFER))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an SharedArrayBuffer object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_SHARED_ARRAY_BUFFER_OBJECT);
   }
 
   return ecma_builtin_arraybuffer_slice (this_arg, argument_list_p, arguments_number);

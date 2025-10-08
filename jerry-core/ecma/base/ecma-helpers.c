@@ -13,20 +13,22 @@
  * limitations under the License.
  */
 
+#include "ecma-helpers.h"
+
 #include "ecma-alloc.h"
 #include "ecma-array-object.h"
+#include "ecma-builtins.h"
 #include "ecma-function-object.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
-#include "ecma-helpers.h"
 #include "ecma-lcache.h"
 #include "ecma-line-info.h"
 #include "ecma-property-hashmap.h"
+
+#include "byte-code.h"
 #include "jcontext.h"
 #include "jrt-bit-fields.h"
-#include "byte-code.h"
 #include "re-compiler.h"
-#include "ecma-builtins.h"
 
 #if JERRY_DEBUGGER
 #include "debugger.h"
@@ -62,13 +64,13 @@ JERRY_STATIC_ASSERT (ECMA_PROPERTY_FLAGS_MASK == ECMA_PROPERTY_CONFIGURABLE_ENUM
 
 /* These checks are needed by ecma_get_object_base_type. */
 JERRY_STATIC_ASSERT ((int) ECMA_OBJECT_TYPE_BUILT_IN_GENERAL == ((int) ECMA_OBJECT_TYPE_GENERAL | 0x1)
-                     && ((int) ECMA_OBJECT_TYPE_GENERAL & 0x1) == 0,
+                       && ((int) ECMA_OBJECT_TYPE_GENERAL & 0x1) == 0,
                      ecma_object_type_built_in_general_has_unexpected_value);
 JERRY_STATIC_ASSERT ((int) ECMA_OBJECT_TYPE_BUILT_IN_CLASS == ((int) ECMA_OBJECT_TYPE_CLASS | 0x1)
-                     && ((int) ECMA_OBJECT_TYPE_CLASS & 0x1) == 0,
+                       && ((int) ECMA_OBJECT_TYPE_CLASS & 0x1) == 0,
                      ecma_object_type_built_in_class_has_unexpected_value);
 JERRY_STATIC_ASSERT ((int) ECMA_OBJECT_TYPE_BUILT_IN_ARRAY == ((int) ECMA_OBJECT_TYPE_ARRAY | 0x1)
-                     && ((int) ECMA_OBJECT_TYPE_ARRAY & 0x1) == 0,
+                       && ((int) ECMA_OBJECT_TYPE_ARRAY & 0x1) == 0,
                      ecma_object_type_built_in_array_has_unexpected_value);
 
 /**
@@ -147,8 +149,7 @@ ecma_object_t *
 ecma_create_object_lex_env (ecma_object_t *outer_lexical_environment_p, /**< outer lexical environment */
                             ecma_object_t *binding_obj_p) /**< binding object */
 {
-  JERRY_ASSERT (binding_obj_p != NULL
-                && !ecma_is_lexical_environment (binding_obj_p));
+  JERRY_ASSERT (binding_obj_p != NULL && !ecma_is_lexical_environment (binding_obj_p));
 
   ecma_object_t *new_lexical_environment_p = ecma_alloc_object ();
 
@@ -156,15 +157,12 @@ ecma_create_object_lex_env (ecma_object_t *outer_lexical_environment_p, /**< out
 
   ecma_init_gc_info (new_lexical_environment_p);
 
-  ECMA_SET_NON_NULL_POINTER (new_lexical_environment_p->u1.bound_object_cp,
-                             binding_obj_p);
+  ECMA_SET_NON_NULL_POINTER (new_lexical_environment_p->u1.bound_object_cp, binding_obj_p);
 
   ECMA_SET_POINTER (new_lexical_environment_p->u2.outer_reference_cp, outer_lexical_environment_p);
 
   return new_lexical_environment_p;
 } /* ecma_create_object_lex_env */
-
-#if JERRY_ESNEXT
 
 /**
  * Create a lexical environment with a specified size.
@@ -199,8 +197,6 @@ ecma_create_lex_env_class (ecma_object_t *outer_lexical_environment_p, /**< oute
 
   return new_lexical_environment_p;
 } /* ecma_create_lex_env_class */
-
-#endif /* JERRY_ESNEXT */
 
 /**
  * Check if the object is lexical environment.
@@ -298,18 +294,14 @@ ecma_get_lex_env_type (const ecma_object_t *object_p) /**< lexical environment *
  *
  * @return pointer to ecma object
  */
-extern inline ecma_object_t * JERRY_ATTR_PURE
+extern inline ecma_object_t *JERRY_ATTR_PURE
 ecma_get_lex_env_binding_object (const ecma_object_t *object_p) /**< object-bound lexical environment */
 {
   JERRY_ASSERT (object_p != NULL);
   JERRY_ASSERT (ecma_is_lexical_environment (object_p));
-#if JERRY_ESNEXT
   JERRY_ASSERT (ecma_get_lex_env_type (object_p) == ECMA_LEXICAL_ENVIRONMENT_THIS_OBJECT_BOUND
                 || (ecma_get_lex_env_type (object_p) == ECMA_LEXICAL_ENVIRONMENT_CLASS
-                    && (object_p->type_flags_refs & ECMA_OBJECT_FLAG_LEXICAL_ENV_HAS_DATA) == 0));
-#else /* !JERRY_ESNEXT */
-  JERRY_ASSERT (ecma_get_lex_env_type (object_p) == ECMA_LEXICAL_ENVIRONMENT_THIS_OBJECT_BOUND);
-#endif /* JERRY_ESNEXT */
+                    && !ECMA_LEX_ENV_CLASS_IS_MODULE (object_p)));
 
   return ECMA_GET_NON_NULL_POINTER (ecma_object_t, object_p->u1.bound_object_cp);
 } /* ecma_get_lex_env_binding_object */
@@ -381,8 +373,7 @@ ecma_clone_decl_lexical_environment (ecma_object_t *lex_env_p, /**< declarative 
     }
 
     prop_iter_cp = prop_iter_p->next_property_cp;
-  }
-  while (prop_iter_cp != JMEM_CP_NULL);
+  } while (prop_iter_cp != JMEM_CP_NULL);
 
   ecma_deref_object (lex_env_p);
   return new_lex_env_p;
@@ -411,8 +402,8 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
   if (*property_list_head_p != ECMA_NULL_POINTER)
   {
     /* If the first entry is free (deleted), it is reused. */
-    ecma_property_header_t *first_property_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
-                                                                          *property_list_head_p);
+    ecma_property_header_t *first_property_p =
+      ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, *property_list_head_p);
 
 #if JERRY_PROPERTY_HASHMAP
     bool has_hashmap = false;
@@ -420,8 +411,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
     if (first_property_p->types[0] == ECMA_PROPERTY_TYPE_HASHMAP)
     {
       property_list_head_p = &first_property_p->next_property_cp;
-      first_property_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
-                                                    *property_list_head_p);
+      first_property_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, *property_list_head_p);
       has_hashmap = true;
     }
 #endif /* JERRY_PROPERTY_HASHMAP */
@@ -433,8 +423,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
       ecma_property_pair_t *first_property_pair_p = (ecma_property_pair_t *) first_property_p;
 
       ecma_property_t name_type;
-      first_property_pair_p->names_cp[0] = ecma_string_to_property_name (name_p,
-                                                                         &name_type);
+      first_property_pair_p->names_cp[0] = ecma_string_to_property_name (name_p, &name_type);
       first_property_p->types[0] = (ecma_property_t) (type_and_flags | name_type);
 
       ecma_property_t *property_p = first_property_p->types + 0;
@@ -456,10 +445,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
 
       if (has_hashmap)
       {
-        ecma_property_hashmap_insert (object_p,
-                                      name_p,
-                                      first_property_pair_p,
-                                      0);
+        ecma_property_hashmap_insert (object_p, name_p, first_property_pair_p, 0);
       }
 #endif /* JERRY_PROPERTY_HASHMAP */
 
@@ -478,8 +464,8 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
 
   if (*property_list_head_p != ECMA_NULL_POINTER)
   {
-    ecma_property_header_t *first_property_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
-                                                                          *property_list_head_p);
+    ecma_property_header_t *first_property_p =
+      ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, *property_list_head_p);
 
     if (first_property_p->types[0] == ECMA_PROPERTY_TYPE_HASHMAP)
     {
@@ -495,8 +481,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
   first_property_pair_p->names_cp[0] = LIT_INTERNAL_MAGIC_STRING_DELETED;
 
   ecma_property_t name_type;
-  first_property_pair_p->names_cp[1] = ecma_string_to_property_name (name_p,
-                                                                     &name_type);
+  first_property_pair_p->names_cp[1] = ecma_string_to_property_name (name_p, &name_type);
 
   first_property_pair_p->header.types[1] = (ecma_property_t) (type_and_flags | name_type);
 
@@ -518,10 +503,7 @@ ecma_create_property (ecma_object_t *object_p, /**< the object */
 
   if (has_hashmap)
   {
-    ecma_property_hashmap_insert (object_p,
-                                  name_p,
-                                  first_property_pair_p,
-                                  1);
+    ecma_property_hashmap_insert (object_p, name_p, first_property_pair_p, 1);
   }
 #endif /* JERRY_PROPERTY_HASHMAP */
 
@@ -542,8 +524,7 @@ ecma_create_named_data_property (ecma_object_t *object_p, /**< object */
                                                                 *         if this field is non-NULL */
 {
   JERRY_ASSERT (object_p != NULL && name_p != NULL);
-  JERRY_ASSERT (ecma_is_lexical_environment (object_p)
-                || !ecma_op_object_is_fast_array (object_p));
+  JERRY_ASSERT (ecma_is_lexical_environment (object_p) || !ecma_op_object_is_fast_array (object_p));
   JERRY_ASSERT (ecma_find_named_property (object_p, name_p) == NULL);
   JERRY_ASSERT ((prop_attributes & ~ECMA_PROPERTY_BUILT_IN_CONFIGURABLE_ENUMERABLE_WRITABLE) == 0);
 
@@ -570,8 +551,7 @@ ecma_create_named_accessor_property (ecma_object_t *object_p, /**< object */
                                                                     *         if this field is non-NULL */
 {
   JERRY_ASSERT (object_p != NULL && name_p != NULL);
-  JERRY_ASSERT (ecma_is_lexical_environment (object_p)
-                || !ecma_op_object_is_fast_array (object_p));
+  JERRY_ASSERT (ecma_is_lexical_environment (object_p) || !ecma_op_object_is_fast_array (object_p));
   JERRY_ASSERT (ecma_find_named_property (object_p, name_p) == NULL);
   JERRY_ASSERT ((prop_attributes & ~ECMA_PROPERTY_BUILT_IN_CONFIGURABLE_ENUMERABLE) == 0);
 
@@ -605,7 +585,7 @@ ecma_create_named_reference_property (ecma_object_t *object_p, /**< object */
   JERRY_ASSERT (ecma_find_named_property (object_p, name_p) == NULL);
   JERRY_ASSERT ((ecma_is_lexical_environment (object_p)
                  && ecma_get_lex_env_type (object_p) == ECMA_LEXICAL_ENVIRONMENT_CLASS
-                 && (object_p->type_flags_refs & ECMA_OBJECT_FLAG_LEXICAL_ENV_HAS_DATA))
+                 && ECMA_LEX_ENV_CLASS_IS_MODULE (object_p))
                 || ecma_object_class_is (object_p, ECMA_OBJECT_CLASS_MODULE_NAMESPACE));
 
   uint8_t type_and_flags = ECMA_PROPERTY_CONFIGURABLE_ENUMERABLE;
@@ -630,8 +610,7 @@ ecma_find_named_property (ecma_object_t *obj_p, /**< object to find property in 
 {
   JERRY_ASSERT (obj_p != NULL);
   JERRY_ASSERT (name_p != NULL);
-  JERRY_ASSERT (ecma_is_lexical_environment (obj_p)
-                || !ecma_op_object_is_fast_array (obj_p));
+  JERRY_ASSERT (ecma_is_lexical_environment (obj_p) || !ecma_op_object_is_fast_array (obj_p));
 
 #if JERRY_LCACHE
   ecma_property_t *property_p = ecma_lcache_lookup (obj_p, name_p);
@@ -648,17 +627,13 @@ ecma_find_named_property (ecma_object_t *obj_p, /**< object to find property in 
 #if JERRY_PROPERTY_HASHMAP
   if (prop_iter_cp != JMEM_CP_NULL)
   {
-    ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
-                                                                     prop_iter_cp);
+    ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, prop_iter_cp);
     if (prop_iter_p->types[0] == ECMA_PROPERTY_TYPE_HASHMAP)
     {
       jmem_cpointer_t property_real_name_cp;
-      property_p = ecma_property_hashmap_find ((ecma_property_hashmap_t *) prop_iter_p,
-                                               name_p,
-                                               &property_real_name_cp);
+      property_p = ecma_property_hashmap_find ((ecma_property_hashmap_t *) prop_iter_p, name_p, &property_real_name_cp);
 #if JERRY_LCACHE
-      if (property_p != NULL
-          && !ecma_is_property_lcached (property_p))
+      if (property_p != NULL && !ecma_is_property_lcached (property_p))
       {
         ecma_lcache_insert (obj_p, property_real_name_cp, property_p);
       }
@@ -682,8 +657,7 @@ ecma_find_named_property (ecma_object_t *obj_p, /**< object to find property in 
 
     while (prop_iter_cp != JMEM_CP_NULL)
     {
-      ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
-                                                                       prop_iter_cp);
+      ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, prop_iter_cp);
 
       JERRY_ASSERT (ECMA_PROPERTY_IS_PROPERTY_PAIR (prop_iter_p));
 
@@ -717,8 +691,7 @@ ecma_find_named_property (ecma_object_t *obj_p, /**< object to find property in 
   {
     while (prop_iter_cp != JMEM_CP_NULL)
     {
-      ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
-                                                                       prop_iter_cp);
+      ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, prop_iter_cp);
 
       JERRY_ASSERT (ECMA_PROPERTY_IS_PROPERTY_PAIR (prop_iter_p));
 
@@ -763,8 +736,7 @@ ecma_find_named_property (ecma_object_t *obj_p, /**< object to find property in 
 #endif /* JERRY_PROPERTY_HASHMAP */
 
 #if JERRY_LCACHE
-  if (property_p != NULL
-      && !ecma_is_property_lcached (property_p))
+  if (property_p != NULL && !ecma_is_property_lcached (property_p))
   {
     ecma_lcache_insert (obj_p, property_name_cp, property_p);
   }
@@ -788,8 +760,7 @@ ecma_get_named_data_property (ecma_object_t *obj_p, /**< object to find property
 {
   JERRY_ASSERT (obj_p != NULL);
   JERRY_ASSERT (name_p != NULL);
-  JERRY_ASSERT (ecma_is_lexical_environment (obj_p)
-                || !ecma_op_object_is_fast_array (obj_p));
+  JERRY_ASSERT (ecma_is_lexical_environment (obj_p) || !ecma_op_object_is_fast_array (obj_p));
 
   ecma_property_t *property_p = ecma_find_named_property (obj_p, name_p);
 
@@ -816,8 +787,7 @@ ecma_delete_property (ecma_object_t *object_p, /**< object */
 
   if (cur_prop_cp != JMEM_CP_NULL)
   {
-    ecma_property_header_t *cur_prop_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
-                                                                    cur_prop_cp);
+    ecma_property_header_t *cur_prop_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, cur_prop_cp);
 
     if (cur_prop_p->types[0] == ECMA_PROPERTY_TYPE_HASHMAP)
     {
@@ -830,8 +800,7 @@ ecma_delete_property (ecma_object_t *object_p, /**< object */
 
   while (cur_prop_cp != JMEM_CP_NULL)
   {
-    ecma_property_header_t *cur_prop_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
-                                                                    cur_prop_cp);
+    ecma_property_header_t *cur_prop_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, cur_prop_cp);
 
     JERRY_ASSERT (ECMA_PROPERTY_IS_PROPERTY_PAIR (cur_prop_p));
 
@@ -846,9 +815,7 @@ ecma_delete_property (ecma_object_t *object_p, /**< object */
 #if JERRY_PROPERTY_HASHMAP
         if (hashmap_status == ECMA_PROPERTY_HASHMAP_DELETE_HAS_HASHMAP)
         {
-          hashmap_status = ecma_property_hashmap_delete (object_p,
-                                                         prop_pair_p->names_cp[i],
-                                                         cur_prop_p->types + i);
+          hashmap_status = ecma_property_hashmap_delete (object_p, prop_pair_p->names_cp[i], cur_prop_p->types + i);
         }
 #endif /* JERRY_PROPERTY_HASHMAP */
 
@@ -988,8 +955,7 @@ ecma_set_named_accessor_property_getter (ecma_object_t *object_p, /**< the prope
 
 #if JERRY_CPOINTER_32_BIT
   ecma_getter_setter_pointers_t *getter_setter_pair_p;
-  getter_setter_pair_p = ECMA_GET_NON_NULL_POINTER (ecma_getter_setter_pointers_t,
-                                                    prop_value_p->getter_setter_pair_cp);
+  getter_setter_pair_p = ECMA_GET_NON_NULL_POINTER (ecma_getter_setter_pointers_t, prop_value_p->getter_setter_pair_cp);
   ECMA_SET_POINTER (getter_setter_pair_p->getter_cp, getter_p);
 #else /* !JERRY_CPOINTER_32_BIT */
   ECMA_SET_POINTER (prop_value_p->getter_setter_pair.getter_cp, getter_p);
@@ -1008,8 +974,7 @@ ecma_set_named_accessor_property_setter (ecma_object_t *object_p, /**< the prope
 
 #if JERRY_CPOINTER_32_BIT
   ecma_getter_setter_pointers_t *getter_setter_pair_p;
-  getter_setter_pair_p = ECMA_GET_NON_NULL_POINTER (ecma_getter_setter_pointers_t,
-                                                    prop_value_p->getter_setter_pair_cp);
+  getter_setter_pair_p = ECMA_GET_NON_NULL_POINTER (ecma_getter_setter_pointers_t, prop_value_p->getter_setter_pair_cp);
   ECMA_SET_POINTER (getter_setter_pair_p->setter_cp, setter_p);
 #else /* !JERRY_CPOINTER_32_BIT */
   ECMA_SET_POINTER (prop_value_p->getter_setter_pair.setter_cp, setter_p);
@@ -1059,7 +1024,7 @@ ecma_property_to_reference (ecma_property_t *property_p) /**< data or reference 
  *
  * @return pointer to the value
  */
-extern inline ecma_property_value_t * JERRY_ATTR_ALWAYS_INLINE
+extern inline ecma_property_value_t *JERRY_ATTR_ALWAYS_INLINE
 ecma_get_property_value_from_named_reference (ecma_property_value_t *reference_p) /**< data property reference */
 {
   ecma_value_t value = reference_p->value;
@@ -1248,14 +1213,12 @@ ecma_free_property_descriptor (ecma_property_descriptor_t *prop_desc_p) /**< pro
     ecma_free_value (prop_desc_p->value);
   }
 
-  if ((prop_desc_p->flags & JERRY_PROP_IS_GET_DEFINED)
-      && prop_desc_p->get_p != NULL)
+  if ((prop_desc_p->flags & JERRY_PROP_IS_GET_DEFINED) && prop_desc_p->get_p != NULL)
   {
     ecma_deref_object (prop_desc_p->get_p);
   }
 
-  if ((prop_desc_p->flags & JERRY_PROP_IS_SET_DEFINED)
-      && prop_desc_p->set_p != NULL)
+  if ((prop_desc_p->flags & JERRY_PROP_IS_SET_DEFINED) && prop_desc_p->set_p != NULL)
   {
     ecma_deref_object (prop_desc_p->set_p);
   }
@@ -1275,7 +1238,7 @@ ecma_ref_extended_primitive (ecma_extended_primitive_t *primitve_p) /**< extende
   }
   else
   {
-    jerry_fatal (ERR_REF_COUNT_LIMIT);
+    jerry_fatal (JERRY_FATAL_REF_COUNT_LIMIT);
   }
 } /* ecma_ref_extended_primitive */
 
@@ -1283,7 +1246,7 @@ ecma_ref_extended_primitive (ecma_extended_primitive_t *primitve_p) /**< extende
  * Decrease ref count of an error reference.
  */
 void
-ecma_deref_error_reference (ecma_extended_primitive_t *error_ref_p) /**< error reference */
+ecma_deref_exception (ecma_extended_primitive_t *error_ref_p) /**< error reference */
 {
   JERRY_ASSERT (error_ref_p->refs_and_type >= ECMA_EXTENDED_PRIMITIVE_REF_ONE);
 
@@ -1294,7 +1257,7 @@ ecma_deref_error_reference (ecma_extended_primitive_t *error_ref_p) /**< error r
     ecma_free_value (error_ref_p->u.value);
     jmem_pools_free (error_ref_p, sizeof (ecma_extended_primitive_t));
   }
-} /* ecma_deref_error_reference */
+} /* ecma_deref_exception */
 
 #if JERRY_BUILTIN_BIGINT
 
@@ -1332,17 +1295,16 @@ ecma_deref_bigint (ecma_extended_primitive_t *bigint_p) /**< bigint value */
  * @return error reference value
  */
 ecma_value_t
-ecma_create_error_reference (ecma_value_t value, /**< referenced value */
-                             bool is_exception) /**< error reference is an exception */
+ecma_create_exception (ecma_value_t value, /**< referenced value */
+                       uint32_t options) /**< ECMA_ERROR_API_* options */
 {
   ecma_extended_primitive_t *error_ref_p;
   error_ref_p = (ecma_extended_primitive_t *) jmem_pools_alloc (sizeof (ecma_extended_primitive_t));
 
-  error_ref_p->refs_and_type = (ECMA_EXTENDED_PRIMITIVE_REF_ONE
-                                | (is_exception ? ECMA_EXTENDED_PRIMITIVE_ERROR : ECMA_EXTENDED_PRIMITIVE_ABORT));
+  error_ref_p->refs_and_type = ECMA_EXTENDED_PRIMITIVE_REF_ONE | options;
   error_ref_p->u.value = value;
   return ecma_make_extended_primitive_value (error_ref_p, ECMA_TYPE_ERROR);
-} /* ecma_create_error_reference */
+} /* ecma_create_exception */
 
 /**
  * Create an error reference from the currently thrown error value.
@@ -1350,38 +1312,47 @@ ecma_create_error_reference (ecma_value_t value, /**< referenced value */
  * @return error reference value
  */
 ecma_value_t
-ecma_create_error_reference_from_context (void)
+ecma_create_exception_from_context (void)
 {
-  bool is_abort = jcontext_has_pending_abort ();
+  uint32_t options = 0;
+  uint32_t status_flags = JERRY_CONTEXT (status_flags);
 
-  if (is_abort)
+  if (status_flags & ECMA_STATUS_ABORT)
   {
-    jcontext_set_abort_flag (false);
+    options |= ECMA_ERROR_API_FLAG_ABORT;
   }
-  return ecma_create_error_reference (jcontext_take_exception (), !is_abort);
-} /* ecma_create_error_reference_from_context */
+
+#if JERRY_VM_THROW
+  if (status_flags & ECMA_STATUS_ERROR_THROWN)
+  {
+    options |= ECMA_ERROR_API_FLAG_THROW_CAPTURED;
+  }
+#endif /* JERRY_VM_THROW */
+
+  return ecma_create_exception (jcontext_take_exception (), options);
+} /* ecma_create_exception_from_context */
 
 /**
- * Create an error reference from a given object.
+ * Create an exception from a given object.
  *
  * Note:
- *   Reference of the value is taken.
+ *   Reference of the object is taken.
  *
- * @return error reference value
+ * @return exception value
  */
 extern inline ecma_value_t JERRY_ATTR_ALWAYS_INLINE
-ecma_create_error_object_reference (ecma_object_t *object_p) /**< referenced object */
+ecma_create_exception_from_object (ecma_object_t *object_p) /**< referenced object */
 {
-  return ecma_create_error_reference (ecma_make_object_value (object_p), true);
-} /* ecma_create_error_object_reference */
+  return ecma_create_exception (ecma_make_object_value (object_p), 0);
+} /* ecma_create_exception_from_object */
 
 /**
- * Raise error from the given error reference.
+ * Raise a new exception from the argument exception value.
  *
- * Note: the error reference's ref count is also decreased
+ * Note: the argument exceptions reference count is decreased
  */
 void
-ecma_raise_error_from_error_reference (ecma_value_t value) /**< error reference */
+ecma_throw_exception (ecma_value_t value) /**< error reference */
 {
   JERRY_ASSERT (!jcontext_has_pending_exception () && !jcontext_has_pending_abort ());
   ecma_extended_primitive_t *error_ref_p = ecma_get_extended_primitive_from_value (value);
@@ -1389,9 +1360,27 @@ ecma_raise_error_from_error_reference (ecma_value_t value) /**< error reference 
   JERRY_ASSERT (error_ref_p->refs_and_type >= ECMA_EXTENDED_PRIMITIVE_REF_ONE);
 
   ecma_value_t referenced_value = error_ref_p->u.value;
+  uint32_t status_flags = JERRY_CONTEXT (status_flags);
 
-  jcontext_set_exception_flag (true);
-  jcontext_set_abort_flag (ECMA_EXTENDED_PRIMITIVE_GET_TYPE (error_ref_p) == ECMA_EXTENDED_PRIMITIVE_ABORT);
+  status_flags |= (ECMA_STATUS_EXCEPTION
+#if JERRY_VM_THROW
+                   | ECMA_STATUS_ERROR_THROWN
+#endif /* JERRY_VM_THROW */
+                   | ECMA_STATUS_ABORT);
+
+  if (!(error_ref_p->refs_and_type & ECMA_ERROR_API_FLAG_ABORT))
+  {
+    status_flags &= ~(uint32_t) ECMA_STATUS_ABORT;
+  }
+
+#if JERRY_VM_THROW
+  if (!(error_ref_p->refs_and_type & ECMA_ERROR_API_FLAG_THROW_CAPTURED))
+  {
+    status_flags &= ~(uint32_t) ECMA_STATUS_ERROR_THROWN;
+  }
+#endif /* JERRY_VM_THROW */
+
+  JERRY_CONTEXT (status_flags) = status_flags;
 
   if (error_ref_p->refs_and_type >= 2 * ECMA_EXTENDED_PRIMITIVE_REF_ONE)
   {
@@ -1404,7 +1393,64 @@ ecma_raise_error_from_error_reference (ecma_value_t value) /**< error reference 
   }
 
   JERRY_CONTEXT (error_value) = referenced_value;
-} /* ecma_raise_error_from_error_reference */
+} /* ecma_throw_exception */
+
+/**
+ * Decrease the reference counter of a script value.
+ */
+void
+ecma_script_deref (ecma_value_t script_value) /**< script value */
+{
+  cbc_script_t *script_p = ECMA_GET_INTERNAL_VALUE_POINTER (cbc_script_t, script_value);
+  script_p->refs_and_type -= CBC_SCRIPT_REF_ONE;
+
+  if (script_p->refs_and_type >= CBC_SCRIPT_REF_ONE)
+  {
+    return;
+  }
+
+  size_t script_size = sizeof (cbc_script_t);
+  uint32_t type = script_p->refs_and_type;
+
+  if (type & CBC_SCRIPT_HAS_USER_VALUE)
+  {
+    script_size += sizeof (ecma_value_t);
+
+    if (!(type & CBC_SCRIPT_USER_VALUE_IS_OBJECT))
+    {
+      ecma_value_t user_value = CBC_SCRIPT_GET_USER_VALUE (script_p);
+
+      JERRY_ASSERT (!ecma_is_value_object (user_value));
+      ecma_free_value (user_value);
+    }
+  }
+
+#if JERRY_SOURCE_NAME
+  ecma_deref_ecma_string (ecma_get_string_from_value (script_p->source_name));
+#endif /* JERRY_SOURCE_NAME */
+
+#if JERRY_MODULE_SYSTEM
+  if (type & CBC_SCRIPT_HAS_IMPORT_META)
+  {
+    JERRY_ASSERT (!(type & CBC_SCRIPT_HAS_FUNCTION_ARGUMENTS));
+    JERRY_ASSERT (ecma_is_value_object (CBC_SCRIPT_GET_IMPORT_META (script_p, type)));
+
+    script_size += sizeof (ecma_value_t);
+  }
+#endif /* JERRY_MODULE_SYSTEM */
+
+#if JERRY_FUNCTION_TO_STRING
+  ecma_deref_ecma_string (ecma_get_string_from_value (script_p->source_code));
+
+  if (type & CBC_SCRIPT_HAS_FUNCTION_ARGUMENTS)
+  {
+    ecma_deref_ecma_string (ecma_get_string_from_value (CBC_SCRIPT_GET_FUNCTION_ARGUMENTS (script_p, type)));
+    script_size += sizeof (ecma_value_t);
+  }
+#endif /* JERRY_FUNCTION_TO_STRING */
+
+  jmem_heap_free_block (script_p, script_size);
+} /* ecma_script_deref */
 
 /**
  * Increase reference counter of Compact
@@ -1416,7 +1462,7 @@ ecma_bytecode_ref (ecma_compiled_code_t *bytecode_p) /**< byte code pointer */
   /* Abort program if maximum reference number is reached. */
   if (bytecode_p->refs >= UINT16_MAX)
   {
-    jerry_fatal (ERR_REF_COUNT_LIMIT);
+    jerry_fatal (JERRY_FATAL_REF_COUNT_LIMIT);
   }
 
   bytecode_p->refs++;
@@ -1468,8 +1514,8 @@ ecma_bytecode_deref (ecma_compiled_code_t *bytecode_p) /**< byte code pointer */
 
     for (uint32_t i = const_literal_end; i < literal_end; i++)
     {
-      ecma_compiled_code_t *bytecode_literal_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t,
-                                                                                  literal_start_p[i]);
+      ecma_compiled_code_t *bytecode_literal_p =
+        ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t, literal_start_p[i]);
 
       /* Self references are ignored. */
       if (bytecode_literal_p != bytecode_p)
@@ -1478,55 +1524,8 @@ ecma_bytecode_deref (ecma_compiled_code_t *bytecode_p) /**< byte code pointer */
       }
     }
 
-    ecma_value_t script_value = ((cbc_uint8_arguments_t *) bytecode_p)->script_value;
-    cbc_script_t *script_p = ECMA_GET_INTERNAL_VALUE_POINTER (cbc_script_t, script_value);
-    script_p->refs_and_type -= CBC_SCRIPT_REF_ONE;
+    ecma_script_deref (((cbc_uint8_arguments_t *) bytecode_p)->script_value);
 
-    if (script_p->refs_and_type < CBC_SCRIPT_REF_ONE)
-    {
-      size_t script_size = sizeof (cbc_script_t);
-      uint32_t type = script_p->refs_and_type;
-
-      if (type & CBC_SCRIPT_HAS_USER_VALUE)
-      {
-        script_size += sizeof (ecma_value_t);
-
-        if (!(type & CBC_SCRIPT_USER_VALUE_IS_OBJECT))
-        {
-          ecma_value_t user_value = CBC_SCRIPT_GET_USER_VALUE (script_p);
-
-          JERRY_ASSERT (!ecma_is_value_object (user_value));
-          ecma_free_value (user_value);
-        }
-      }
-
-#if JERRY_RESOURCE_NAME
-      ecma_deref_ecma_string (ecma_get_string_from_value (script_p->resource_name));
-#endif /* JERRY_RESOURCE_NAME */
-
-#if JERRY_MODULE_SYSTEM
-      if (type & CBC_SCRIPT_HAS_IMPORT_META)
-      {
-        JERRY_ASSERT (ecma_is_value_object (CBC_SCRIPT_GET_IMPORT_META (script_p, type)));
-
-        script_size += sizeof (ecma_value_t);
-      }
-#endif /* JERRY_MODULE_SYSTEM */
-
-#if JERRY_FUNCTION_TO_STRING
-      ecma_deref_ecma_string (ecma_get_string_from_value (script_p->source_code));
-
-      if (type & CBC_SCRIPT_HAS_FUNCTION_ARGUMENTS)
-      {
-        ecma_deref_ecma_string (ecma_get_string_from_value (CBC_SCRIPT_GET_FUNCTION_ARGUMENTS (script_p, type)));
-        script_size += sizeof (ecma_value_t);
-      }
-#endif /* JERRY_FUNCTION_TO_STRING */
-
-      jmem_heap_free_block (script_p, script_size);
-    }
-
-#if JERRY_ESNEXT
     if (bytecode_p->status_flags & CBC_CODE_FLAGS_HAS_TAGGED_LITERALS)
     {
       ecma_collection_t *collection_p = ecma_compiled_code_get_tagged_template_collection (bytecode_p);
@@ -1536,7 +1535,6 @@ ecma_bytecode_deref (ecma_compiled_code_t *bytecode_p) /**< byte code pointer */
       JERRY_CONTEXT (ecma_gc_new_objects) += collection_p->item_count * 2;
       ecma_collection_free_template_literal (collection_p);
     }
-#endif /* JERRY_ESNEXT */
 
 #if JERRY_LINE_INFO
     if (bytecode_p->status_flags & CBC_CODE_FLAGS_HAS_LINE_INFO)
@@ -1569,8 +1567,7 @@ ecma_bytecode_deref (ecma_compiled_code_t *bytecode_p) /**< byte code pointer */
       {
         jerry_debugger_byte_code_free_t *first_byte_code_free_p;
 
-        first_byte_code_free_p = JMEM_CP_GET_NON_NULL_POINTER (jerry_debugger_byte_code_free_t,
-                                                               byte_code_free_head);
+        first_byte_code_free_p = JMEM_CP_GET_NON_NULL_POINTER (jerry_debugger_byte_code_free_t, byte_code_free_head);
         first_byte_code_free_p->prev_cp = byte_code_free_cp;
       }
 
@@ -1592,24 +1589,24 @@ ecma_bytecode_deref (ecma_compiled_code_t *bytecode_p) /**< byte code pointer */
 #endif /* JERRY_BUILTIN_REGEXP */
   }
 
-  jmem_heap_free_block (bytecode_p,
-                        ((size_t) bytecode_p->size) << JMEM_ALIGNMENT_LOG);
+  jmem_heap_free_block (bytecode_p, ((size_t) bytecode_p->size) << JMEM_ALIGNMENT_LOG);
 } /* ecma_bytecode_deref */
 
 /**
- * Gets the byte code asigned to a script / module / function
+ * Gets the script data asigned to a script / module / function
  *
- * @return byte code - if available, NULL - otherwise
+ * @return script data - if available, JMEM_CP_NULL - otherwise
  */
-const ecma_compiled_code_t *
-ecma_bytecode_get_from_value (ecma_value_t value) /**< compiled code */
+ecma_value_t
+ecma_script_get_from_value (ecma_value_t value) /**< compiled code */
 {
   if (!ecma_is_value_object (value))
   {
-    return NULL;
+    return JMEM_CP_NULL;
   }
 
   ecma_object_t *object_p = ecma_get_object_from_value (value);
+  const ecma_compiled_code_t *bytecode_p = NULL;
 
   while (true)
   {
@@ -1621,8 +1618,8 @@ ecma_bytecode_get_from_value (ecma_value_t value) /**< compiled code */
 
         if (ext_object_p->u.cls.type == ECMA_OBJECT_CLASS_SCRIPT)
         {
-          return ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t,
-                                                  ext_object_p->u.cls.u3.value);
+          bytecode_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t, ext_object_p->u.cls.u3.value);
+          break;
         }
 
 #if JERRY_MODULE_SYSTEM
@@ -1632,31 +1629,40 @@ ecma_bytecode_get_from_value (ecma_value_t value) /**< compiled code */
 
           if (!(module_p->header.u.cls.u2.module_flags & ECMA_MODULE_IS_NATIVE))
           {
-            return module_p->u.compiled_code_p;
+            bytecode_p = module_p->u.compiled_code_p;
+            break;
           }
         }
 #endif /* JERRY_MODULE_SYSTEM */
-        return NULL;
+        return JMEM_CP_NULL;
       }
       case ECMA_OBJECT_TYPE_FUNCTION:
       {
-        return ecma_op_function_get_compiled_code ((ecma_extended_object_t *) object_p);
+        bytecode_p = ecma_op_function_get_compiled_code ((ecma_extended_object_t *) object_p);
+        break;
       }
       case ECMA_OBJECT_TYPE_BOUND_FUNCTION:
       {
         ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) object_p;
 
-        object_p = ECMA_GET_NON_NULL_POINTER_FROM_POINTER_TAG (ecma_object_t,
-                                                               ext_object_p->u.bound_function.target_function);
-        break;
+        object_p =
+          ECMA_GET_NON_NULL_POINTER_FROM_POINTER_TAG (ecma_object_t, ext_object_p->u.bound_function.target_function);
+        continue;
+      }
+      case ECMA_OBJECT_TYPE_CONSTRUCTOR_FUNCTION:
+      {
+        return ((ecma_extended_object_t *) object_p)->u.constructor_function.script_value;
       }
       default:
       {
-        return NULL;
+        return JMEM_CP_NULL;
       }
     }
+
+    JERRY_ASSERT (bytecode_p != NULL);
+    return ((cbc_uint8_arguments_t *) bytecode_p)->script_value;
   }
-} /* ecma_bytecode_get_from_value */
+} /* ecma_script_get_from_value */
 
 /**
  * Resolve the position of the arguments list start of the compiled code
@@ -1684,14 +1690,12 @@ ecma_compiled_code_resolve_arguments_start (const ecma_compiled_code_t *bytecode
   return ((ecma_value_t *) byte_p) - ((cbc_uint16_arguments_t *) bytecode_header_p)->argument_end;
 } /* ecma_compiled_code_resolve_arguments_start */
 
-#if JERRY_ESNEXT
-
 /**
  * Resolve the position of the function name of the compiled code
  *
  * @return position of the function name of the compiled code
  */
-extern inline ecma_value_t * JERRY_ATTR_ALWAYS_INLINE
+extern inline ecma_value_t *JERRY_ATTR_ALWAYS_INLINE
 ecma_compiled_code_resolve_function_name (const ecma_compiled_code_t *bytecode_header_p) /**< compiled code */
 {
   JERRY_ASSERT (bytecode_header_p != NULL);
@@ -1720,8 +1724,6 @@ ecma_compiled_code_get_tagged_template_collection (const ecma_compiled_code_t *b
   return ECMA_GET_INTERNAL_VALUE_POINTER (ecma_collection_t, base_p[-1]);
 } /* ecma_compiled_code_get_tagged_template_collection */
 
-#endif /* JERRY_ESNEXT */
-
 #if JERRY_LINE_INFO
 
 /**
@@ -1737,7 +1739,6 @@ ecma_compiled_code_get_line_info (const ecma_compiled_code_t *bytecode_header_p)
 
   ecma_value_t *base_p = ecma_compiled_code_resolve_arguments_start (bytecode_header_p);
 
-#if JERRY_ESNEXT
   if (CBC_FUNCTION_GET_TYPE (bytecode_header_p->status_flags) != CBC_FUNCTION_CONSTRUCTOR)
   {
     base_p--;
@@ -1747,7 +1748,6 @@ ecma_compiled_code_get_line_info (const ecma_compiled_code_t *bytecode_header_p)
   {
     base_p--;
   }
-#endif /* JERRY_ESNEXT */
 
   return ECMA_GET_INTERNAL_VALUE_POINTER (uint8_t, base_p[-1]);
 } /* ecma_compiled_code_get_line_info */
@@ -1755,28 +1755,28 @@ ecma_compiled_code_get_line_info (const ecma_compiled_code_t *bytecode_header_p)
 #endif /* JERRY_LINE_INFO */
 
 /**
- * Get the resource name of a compiled code.
+ * Get the source name of a compiled code.
  *
- * @return resource name value
+ * @return source name value
  */
 ecma_value_t
-ecma_get_resource_name (const ecma_compiled_code_t *bytecode_p) /**< compiled code */
+ecma_get_source_name (const ecma_compiled_code_t *bytecode_p) /**< compiled code */
 {
-#if JERRY_RESOURCE_NAME
+#if JERRY_SOURCE_NAME
 #if JERRY_SNAPSHOT_EXEC
   if (JERRY_UNLIKELY (bytecode_p->status_flags & CBC_CODE_FLAGS_STATIC_FUNCTION))
   {
-    return ecma_make_magic_string_value (LIT_MAGIC_STRING_RESOURCE_ANON);
+    return ecma_make_magic_string_value (LIT_MAGIC_STRING_SOURCE_NAME_ANON);
   }
 #endif /* JERRY_SNAPSHOT_EXEC */
 
   ecma_value_t script_value = ((cbc_uint8_arguments_t *) bytecode_p)->script_value;
-  return ECMA_GET_INTERNAL_VALUE_POINTER (cbc_script_t, script_value)->resource_name;
-#else /* !JERRY_RESOURCE_NAME */
+  return ECMA_GET_INTERNAL_VALUE_POINTER (cbc_script_t, script_value)->source_name;
+#else /* !JERRY_SOURCE_NAME */
   JERRY_UNUSED (bytecode_p);
-  return ecma_make_magic_string_value (LIT_MAGIC_STRING_RESOURCE_ANON);
-#endif /* !JERRY_RESOURCE_NAME */
-} /* ecma_get_resource_name */
+  return ecma_make_magic_string_value (LIT_MAGIC_STRING_SOURCE_NAME_ANON);
+#endif /* !JERRY_SOURCE_NAME */
+} /* ecma_get_source_name */
 
 #if (JERRY_STACK_LIMIT != 0)
 /**

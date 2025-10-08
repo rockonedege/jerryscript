@@ -14,21 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
 import argparse
 import os
 import re
-import shutil
 import subprocess
 import sys
 
 import util
-
-def get_platform_cmd_prefix():
-    if sys.platform == 'win32':
-        return ['cmd', '/S', '/C']
-    return ['python2']  # The official test262.py isn't python3 compatible, but has python shebang.
-
 
 def get_arguments():
     execution_runtime = os.environ.get('RUNTIME', '')
@@ -42,37 +34,19 @@ def get_arguments():
     parser.add_argument('--test-dir', metavar='DIR', required=True,
                         help='Directory contains test262 test suite')
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--es51', action='store_true',
-                       help='Run test262 ES5.1 version')
-    group.add_argument('--es2015', default=False, const='default',
-                       nargs='?', choices=['default', 'all', 'update'],
-                       help='Run test262 - ES2015. default: all tests except excludelist, ' +
-                       'all: all tests, update: all tests and update excludelist')
-    group.add_argument('--esnext', default=False, const='default',
-                       nargs='?', choices=['default', 'all', 'update'],
-                       help='Run test262 - ES.next. default: all tests except excludelist, ' +
-                       'all: all tests, update: all tests and update excludelist')
     parser.add_argument('--test262-test-list', metavar='LIST',
                         help='Add a comma separated list of tests or directories to run in test262 test suite')
+    group.add_argument('--mode', default=False, const='default',
+                       nargs='?', choices=['default', 'all', 'update'],
+                       help='Run test262 - default: all tests except excludelist, ' +
+                       'all: all tests, update: all tests and update excludelist')
 
     args = parser.parse_args()
 
-    if args.es2015:
-        args.test_dir = os.path.join(args.test_dir, 'es2015')
-        args.test262_harness_dir = os.path.abspath(os.path.dirname(__file__))
-        args.test262_git_hash = 'fd44cd73dfbce0b515a2474b7cd505d6176a9eb5'
-        args.excludelist_path = os.path.join('tests', 'test262-es6-excludelist.xml')
-    elif args.esnext:
-        args.test_dir = os.path.join(args.test_dir, 'esnext')
-        args.test262_harness_dir = os.path.abspath(os.path.dirname(__file__))
-        args.test262_git_hash = '281eb10b2844929a7c0ac04527f5b42ce56509fd'
-        args.excludelist_path = os.path.join('tests', 'test262-esnext-excludelist.xml')
-    else:
-        args.test_dir = os.path.join(args.test_dir, 'es51')
-        args.test262_harness_dir = args.test_dir
-        args.test262_git_hash = 'es5-tests'
-
-    args.mode = args.es2015 or args.esnext
+    args.test_dir = os.path.join(args.test_dir, 'esnext')
+    args.test262_harness_dir = os.path.abspath(os.path.dirname(__file__))
+    args.test262_git_hash = '00f682e7467bd5cb0e5b1f02a7d26420f450aee0'
+    args.excludelist_path = os.path.join('tests', 'test262-excludelist.xml')
 
     return args
 
@@ -81,7 +55,7 @@ def prepare_test262_test_suite(args):
     if os.path.isdir(os.path.join(args.test_dir, '.git')):
         return 0
 
-    return_code = subprocess.call(['git', 'clone', '--no-checkout',
+    return_code = subprocess.call(['git', 'clone', '--no-checkout', '--config', 'core.autocrlf=false',
                                    'https://github.com/tc39/test262.git', args.test_dir])
     if return_code:
         print('Cloning test262 repository failed.')
@@ -90,33 +64,14 @@ def prepare_test262_test_suite(args):
     return_code = subprocess.call(['git', 'checkout', args.test262_git_hash], cwd=args.test_dir)
     assert not return_code, 'Cloning test262 repository failed - invalid git revision.'
 
-    if args.es51:
-        path_to_remove = os.path.join(args.test_dir, 'test', 'suite', 'bestPractice')
-        if os.path.isdir(path_to_remove):
-            shutil.rmtree(path_to_remove)
-
-        path_to_remove = os.path.join(args.test_dir, 'test', 'suite', 'intl402')
-        if os.path.isdir(path_to_remove):
-            shutil.rmtree(path_to_remove)
-
-    # Since ES2018 iterator's next method is called once during the prologue of iteration,
-    # rather than during each step. The test is incorrect and stuck in an infinite loop.
-    # https://github.com/tc39/test262/pull/1248 fixed the test and it passes on test262-esnext.
-    if args.es2015:
-        test_to_remove = 'test/language/statements/for-of/iterator-next-reference.js'
-        path_to_remove = os.path.join(args.test_dir, os.path.normpath(test_to_remove))
-        if os.path.isfile(path_to_remove):
-            os.remove(path_to_remove)
-
     return 0
-
 
 def update_exclude_list(args):
     print("=== Summary - updating excludelist ===\n")
     passing_tests = set()
     failing_tests = set()
     new_passing_tests = set()
-    with open(os.path.join(os.path.dirname(args.engine), 'test262.report'), 'r') as report_file:
+    with open(os.path.join(os.path.dirname(args.engine), 'test262.report'), 'r', encoding='utf8') as report_file:
         for line in report_file:
             match = re.match('(=== )?(.*) (?:failed|passed) in (?:non-strict|strict)', line)
             if match:
@@ -130,7 +85,7 @@ def update_exclude_list(args):
     # Tests pass in strict-mode but fail in non-strict-mode (or vice versa) should be considered as failures
     passing_tests = passing_tests - failing_tests
 
-    with open(args.excludelist_path, 'r+') as exclude_file:
+    with open(args.excludelist_path, 'r+', encoding='utf8', errors='ignore') as exclude_file:
         lines = exclude_file.readlines()
         exclude_file.seek(0)
         exclude_file.truncate()
@@ -174,6 +129,7 @@ def update_exclude_list(args):
 
 
 def main(args):
+    util.setup_stdio()
     return_code = prepare_test262_test_suite(args)
     if return_code:
         return return_code
@@ -188,15 +144,11 @@ def main(args):
         command += ' --test262-object'
 
     kwargs = {}
-    if sys.version_info.major >= 3:
-        kwargs['errors'] = 'ignore'
+    kwargs['errors'] = 'ignore'
 
-    if args.es51:
-        test262_harness_path = os.path.join(args.test262_harness_dir, 'tools/packaging/test262.py')
-    else:
-        test262_harness_path = os.path.join(args.test262_harness_dir, 'test262-harness.py')
+    test262_harness_path = os.path.join(args.test262_harness_dir, 'test262-harness.py')
 
-    test262_command = get_platform_cmd_prefix() + \
+    test262_command = util.get_python_cmd_prefix() + \
                       [test262_harness_path,
                        '--command', command,
                        '--tests', args.test_dir,
@@ -208,41 +160,38 @@ def main(args):
     if args.test262_test_list:
         test262_command.extend(args.test262_test_list.split(','))
 
-    proc = subprocess.Popen(test262_command,
-                            universal_newlines=True,
-                            stdout=subprocess.PIPE,
-                            **kwargs)
+    with subprocess.Popen(test262_command, universal_newlines=True, stdout=subprocess.PIPE, **kwargs) as proc:
 
-    return_code = 1
-    with open(os.path.join(os.path.dirname(args.engine), 'test262.report'), 'w') as output_file:
-        counter = 0
-        summary_found = False
-        summary_end_found = False
-        while True:
-            output = proc.stdout.readline()
-            if not output:
-                break
-            output_file.write(output)
+        return_code = 1
+        with open(os.path.join(os.path.dirname(args.engine), 'test262.report'), 'w', encoding='utf8') as output_file:
+            counter = 0
+            summary_found = False
+            summary_end_found = False
+            while True:
+                output = proc.stdout.readline()
+                if not output:
+                    break
+                output_file.write(output)
 
-            if output.startswith('=== Summary ==='):
-                summary_found = True
-                print('')
+                if output.startswith('=== Summary ==='):
+                    summary_found = True
+                    print('')
 
-            if summary_found:
-                if not summary_end_found:
-                    print(output, end='')
-                    if not output.strip():
-                        summary_end_found = True
-                if 'All tests succeeded' in output:
-                    return_code = 0
-            elif re.search('in (non-)?strict mode', output):
-                counter += 1
-                if (counter % 100) == 0:
-                    print(".", end='')
-                if (counter % 5000) == 0:
-                    print(" Executed %d tests." % counter)
+                if summary_found:
+                    if not summary_end_found:
+                        print(output, end='')
+                        if not output.strip():
+                            summary_end_found = True
+                    if 'All tests succeeded' in output:
+                        return_code = 0
+                elif re.search('in (non-)?strict mode', output):
+                    counter += 1
+                    if (counter % 100) == 0:
+                        print(".", end='')
+                    if (counter % 5000) == 0:
+                        print(f" Executed {counter} tests.")
 
-    proc.wait()
+        proc.wait()
 
     if sys.platform == 'win32':
         util.set_timezone(original_timezone)

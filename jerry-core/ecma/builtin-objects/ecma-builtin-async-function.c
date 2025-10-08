@@ -15,14 +15,12 @@
 
 #include "ecma-globals.h"
 
-#if JERRY_ESNEXT
-
 #define ECMA_BUILTINS_INTERNAL
 #include "ecma-builtins-internal.h"
 #include "ecma-function-object.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-async-function.inc.h"
-#define BUILTIN_UNDERSCORED_ID async_function
+#define BUILTIN_UNDERSCORED_ID  async_function
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -47,9 +45,7 @@ ecma_builtin_async_function_dispatch_call (const ecma_value_t *arguments_list_p,
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  return ecma_op_create_dynamic_function (arguments_list_p,
-                                          arguments_list_len,
-                                          ECMA_PARSE_ASYNC_FUNCTION);
+  return ecma_op_create_dynamic_function (arguments_list_p, arguments_list_len, ECMA_PARSE_ASYNC_FUNCTION);
 } /* ecma_builtin_async_function_dispatch_call */
 
 /**
@@ -70,5 +66,3 @@ ecma_builtin_async_function_dispatch_construct (const ecma_value_t *arguments_li
  * @}
  * @}
  */
-
-#endif /* JERRY_ESNEXT */

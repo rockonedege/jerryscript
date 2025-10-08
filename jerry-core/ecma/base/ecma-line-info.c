@@ -13,10 +13,9 @@
  * limitations under the License.
  */
 
-#include "ecma-helpers.h"
 #include "ecma-line-info.h"
 
-#if JERRY_LINE_INFO
+#include "ecma-helpers.h"
 
 /** \addtogroup ecma ECMA
  * @{
@@ -24,6 +23,8 @@
  * \addtogroup ecmalineinfo Line info
  * @{
  */
+
+#if JERRY_LINE_INFO
 
 /* The layout of the structure is defined in js-parser-line-info-create.c */
 
@@ -45,8 +46,7 @@ ecma_line_info_decode_vlq (uint8_t **buffer_p) /**< [in/out] target buffer */
   do
   {
     value = (value << ECMA_LINE_INFO_VLQ_SHIFT) | (*source_p & ECMA_LINE_INFO_VLQ_MASK);
-  }
-  while (*source_p++ & ECMA_LINE_INFO_VLQ_CONTINUE);
+  } while (*source_p++ & ECMA_LINE_INFO_VLQ_CONTINUE);
 
   *buffer_p = source_p;
   return value;
@@ -116,7 +116,7 @@ ecma_line_info_free (uint8_t *line_info_p) /**< line info buffer */
 void
 ecma_line_info_get (uint8_t *line_info_p, /**< line info buffer */
                     uint32_t offset, /**< byte code offset */
-                    jerry_backtrace_location_t *location_p) /**< [out] location */
+                    jerry_frame_location_t *location_p) /**< [out] location */
 {
   uint32_t line = 1;
   uint32_t column = ECMA_LINE_INFO_COLUMN_DEFAULT;
@@ -139,13 +139,14 @@ ecma_line_info_get (uint8_t *line_info_p, /**< line info buffer */
 
     uint8_t *size_p = line_info_p + *line_info_p + (ECMA_LINE_INFO_STREAM_SIZE_MIN + 1);
 
-    end_offset += ecma_line_info_decode_vlq (&size_p);
+    uint32_t next_end_offset = end_offset + ecma_line_info_decode_vlq (&size_p);
 
-    if (offset < end_offset)
+    if (offset < next_end_offset)
     {
       break;
     }
 
+    end_offset = next_end_offset;
     line_info_p = size_p;
   }
 
@@ -168,8 +169,7 @@ ecma_line_info_get (uint8_t *line_info_p, /**< line info buffer */
     column = ecma_line_info_difference_update (column, value);
 
     end_offset += end_offset_increase;
-  }
-  while (end_offset_increase != 0 && end_offset <= offset);
+  } while (end_offset_increase != 0 && end_offset <= offset);
 
   location_p->line = line;
   location_p->column = column;

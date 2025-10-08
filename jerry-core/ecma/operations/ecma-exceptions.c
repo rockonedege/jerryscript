@@ -13,17 +13,20 @@
  * limitations under the License.
  */
 
+#include "ecma-exceptions.h"
+
 #include <stdarg.h>
+
+#include "ecma-array-object.h"
 #include "ecma-builtins.h"
 #include "ecma-conversion.h"
-#include "ecma-exceptions.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
+#include "ecma-iterator-object.h"
 #include "ecma-objects.h"
 #include "ecma-symbol-object.h"
-#include "ecma-iterator-object.h"
-#include "ecma-array-object.h"
+
 #include "jcontext.h"
 #include "jrt.h"
 
@@ -84,13 +87,12 @@ ecma_new_standard_error (jerry_error_t error_type, /**< native error type */
       break;
     }
 
-#if JERRY_ESNEXT
     case JERRY_ERROR_AGGREGATE:
     {
       prototype_id = ECMA_BUILTIN_ID_AGGREGATE_ERROR_PROTOTYPE;
       break;
     }
-#endif /* JERRY_ESNEXT */
+
     case JERRY_ERROR_URI:
     {
       prototype_id = ECMA_BUILTIN_ID_URI_ERROR_PROTOTYPE;
@@ -111,16 +113,15 @@ ecma_new_standard_error (jerry_error_t error_type, /**< native error type */
       break;
     }
   }
-#else
+#else /* !JERRY_BUILTIN_ERRORS */
   JERRY_UNUSED (error_type);
   ecma_builtin_id_t prototype_id = ECMA_BUILTIN_ID_ERROR_PROTOTYPE;
 #endif /* JERRY_BUILTIN_ERRORS */
 
   ecma_object_t *prototype_obj_p = ecma_builtin_get (prototype_id);
 
-  ecma_object_t *error_object_p = ecma_create_object (prototype_obj_p,
-                                                      sizeof (ecma_extended_object_t),
-                                                      ECMA_OBJECT_TYPE_CLASS);
+  ecma_object_t *error_object_p =
+    ecma_create_object (prototype_obj_p, sizeof (ecma_extended_object_t), ECMA_OBJECT_TYPE_CLASS);
 
   ecma_extended_object_t *extended_object_p = (ecma_extended_object_t *) error_object_p;
   extended_object_p->u.cls.type = ECMA_OBJECT_CLASS_ERROR;
@@ -143,8 +144,8 @@ ecma_new_standard_error (jerry_error_t error_type, /**< native error type */
       && !(JERRY_CONTEXT (status_flags) & ECMA_STATUS_ERROR_UPDATE))
   {
     JERRY_CONTEXT (status_flags) |= ECMA_STATUS_ERROR_UPDATE;
-    JERRY_CONTEXT (error_object_created_callback_p) (ecma_make_object_value (error_object_p),
-                                                     JERRY_CONTEXT (error_object_created_callback_user_p));
+    JERRY_CONTEXT (error_object_created_callback_p)
+    (ecma_make_object_value (error_object_p), JERRY_CONTEXT (error_object_created_callback_user_p));
     JERRY_CONTEXT (status_flags) &= (uint32_t) ~ECMA_STATUS_ERROR_UPDATE;
   }
   else
@@ -153,10 +154,8 @@ ecma_new_standard_error (jerry_error_t error_type, /**< native error type */
     /* Default decorator when line info is enabled. */
     ecma_string_t *stack_str_p = ecma_get_magic_string (LIT_MAGIC_STRING_STACK);
 
-    ecma_property_value_t *prop_value_p = ecma_create_named_data_property (error_object_p,
-                                                                           stack_str_p,
-                                                                           ECMA_PROPERTY_CONFIGURABLE_WRITABLE,
-                                                                           NULL);
+    ecma_property_value_t *prop_value_p =
+      ecma_create_named_data_property (error_object_p, stack_str_p, ECMA_PROPERTY_CONFIGURABLE_WRITABLE, NULL);
     ecma_deref_ecma_string (stack_str_p);
 
     ecma_value_t backtrace_value = vm_get_backtrace (0);
@@ -169,7 +168,6 @@ ecma_new_standard_error (jerry_error_t error_type, /**< native error type */
   return error_object_p;
 } /* ecma_new_standard_error */
 
-#if JERRY_ESNEXT
 /**
  * aggregate-error object constructor.
  *
@@ -273,8 +271,6 @@ ecma_new_aggregate_error (ecma_value_t error_list_val, /**< errors list */
   return ecma_make_object_value (new_error_object_p);
 } /* ecma_new_aggregate_error */
 
-#endif /* JERRY_ESNEXT */
-
 /**
  * Return the error type for an Error object.
  *
@@ -298,16 +294,16 @@ ecma_get_error_type (ecma_object_t *error_object_p) /**< possible error object *
  * @return ecma value
  *         Returned value must be freed with ecma_free_value
  */
-static ecma_value_t
+ecma_value_t
 ecma_raise_standard_error (jerry_error_t error_type, /**< error type */
-                           const lit_utf8_byte_t *msg_p) /**< error message */
+                           ecma_error_msg_t msg) /**< error message */
 {
   ecma_object_t *error_obj_p;
+  const lit_utf8_byte_t *str_p = (lit_utf8_byte_t *) ecma_get_error_msg (msg);
 
-  if (msg_p != NULL)
+  if (msg != ECMA_ERR_EMPTY)
   {
-    ecma_string_t *error_msg_p = ecma_new_ecma_string_from_utf8 (msg_p,
-                                                                 lit_zt_utf8_string_size (msg_p));
+    ecma_string_t *error_msg_p = ecma_new_ecma_external_string_from_cesu8 (str_p, ecma_get_error_size (msg), NULL);
     error_obj_p = ecma_new_standard_error (error_type, error_msg_p);
     ecma_deref_ecma_string (error_msg_p);
   }
@@ -364,13 +360,11 @@ ecma_raise_standard_error_with_format (jerry_error_t error_type, /**< error type
         lit_magic_string_id_t class_name = ecma_object_get_class_name (arg_object_p);
         arg_string_p = ecma_get_magic_string (class_name);
       }
-#if JERRY_ESNEXT
       else if (ecma_is_value_symbol (arg_val))
       {
         ecma_value_t symbol_desc_value = ecma_get_symbol_descriptive_string (arg_val);
         arg_string_p = ecma_get_string_from_value (symbol_desc_value);
       }
-#endif /* JERRY_ESNEXT */
       else
       {
         arg_string_p = ecma_op_to_string (arg_val);
@@ -415,9 +409,9 @@ ecma_raise_standard_error_with_format (jerry_error_t error_type, /**< error type
  *         Returned value must be freed with ecma_free_value
  */
 ecma_value_t
-ecma_raise_common_error (const char *msg_p) /**< error message */
+ecma_raise_common_error (ecma_error_msg_t msg) /**< error message */
 {
-  return ecma_raise_standard_error (JERRY_ERROR_COMMON, (const lit_utf8_byte_t *) msg_p);
+  return ecma_raise_standard_error (JERRY_ERROR_COMMON, msg);
 } /* ecma_raise_common_error */
 
 /**
@@ -429,9 +423,9 @@ ecma_raise_common_error (const char *msg_p) /**< error message */
  *         Returned value must be freed with ecma_free_value
  */
 ecma_value_t
-ecma_raise_range_error (const char *msg_p) /**< error message */
+ecma_raise_range_error (ecma_error_msg_t msg) /**< error message */
 {
-  return ecma_raise_standard_error (JERRY_ERROR_RANGE, (const lit_utf8_byte_t *) msg_p);
+  return ecma_raise_standard_error (JERRY_ERROR_RANGE, msg);
 } /* ecma_raise_range_error */
 
 /**
@@ -443,9 +437,9 @@ ecma_raise_range_error (const char *msg_p) /**< error message */
  *         Returned value must be freed with ecma_free_value
  */
 ecma_value_t
-ecma_raise_reference_error (const char *msg_p) /**< error message */
+ecma_raise_reference_error (ecma_error_msg_t msg) /**< error message */
 {
-  return ecma_raise_standard_error (JERRY_ERROR_REFERENCE, (const lit_utf8_byte_t *) msg_p);
+  return ecma_raise_standard_error (JERRY_ERROR_REFERENCE, msg);
 } /* ecma_raise_reference_error */
 
 /**
@@ -457,40 +451,52 @@ ecma_raise_reference_error (const char *msg_p) /**< error message */
  *         Returned value must be freed with ecma_free_value
  */
 ecma_value_t
-ecma_raise_syntax_error (const char *msg_p) /**< error message */
+ecma_raise_syntax_error (ecma_error_msg_t msg) /**< error message */
 {
-  return ecma_raise_standard_error (JERRY_ERROR_SYNTAX, (const lit_utf8_byte_t *) msg_p);
+  return ecma_raise_standard_error (JERRY_ERROR_SYNTAX, msg);
 } /* ecma_raise_syntax_error */
 
 /**
  * Raise a TypeError with the given message.
  *
-* See also: ECMA-262 v5, 15.11.6.5
+ * See also: ECMA-262 v5, 15.11.6.5
  *
  * @return ecma value
  *         Returned value must be freed with ecma_free_value
  */
 ecma_value_t
-ecma_raise_type_error (const char *msg_p) /**< error message */
+ecma_raise_type_error (ecma_error_msg_t msg) /**< error message */
 {
-  return ecma_raise_standard_error (JERRY_ERROR_TYPE, (const lit_utf8_byte_t *) msg_p);
+  return ecma_raise_standard_error (JERRY_ERROR_TYPE, msg);
 } /* ecma_raise_type_error */
 
 /**
  * Raise a URIError with the given message.
  *
-* See also: ECMA-262 v5, 15.11.6.6
+ * See also: ECMA-262 v5, 15.11.6.6
  *
  * @return ecma value
  *         Returned value must be freed with ecma_free_value
  */
 ecma_value_t
-ecma_raise_uri_error (const char *msg_p) /**< error message */
+ecma_raise_uri_error (ecma_error_msg_t msg) /**< error message */
 {
-  return ecma_raise_standard_error (JERRY_ERROR_URI, (const lit_utf8_byte_t *) msg_p);
+  return ecma_raise_standard_error (JERRY_ERROR_URI, msg);
 } /* ecma_raise_uri_error */
 
-#if JERRY_ESNEXT
+#if (JERRY_STACK_LIMIT != 0)
+/**
+ * Raise a RangeError with "Maximum call stack size exceeded" message.
+ *
+ * @return ecma value
+ *         Returned value must be freed with ecma_free_value
+ */
+ecma_value_t
+ecma_raise_maximum_callstack_error (void)
+{
+  return ecma_raise_range_error (ECMA_ERR_MAXIMUM_CALL_STACK_SIZE_EXCEEDED);
+} /* ecma_raise_maximum_callstack_error */
+#endif /* (JERRY_STACK_LIMIT != 0) */
 
 /**
  * Raise a AggregateError with the given errors and message.
@@ -507,8 +513,6 @@ ecma_raise_aggregate_error (ecma_value_t error_list_val, /**< errors list */
 
   return ECMA_VALUE_ERROR;
 } /* ecma_raise_aggregate_error */
-
-#endif /* JERRY_ESNEXT */
 
 /**
  * @}

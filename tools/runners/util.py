@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright JS Foundation and other contributors, http://js.foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,14 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
+import codecs
 import signal
 import subprocess
 import sys
 
-TERM_NORMAL = '\033[0m'
-TERM_RED = '\033[1;31m'
-TERM_GREEN = '\033[1;32m'
+if sys.platform == 'win32':
+    TERM_NORMAL = ''
+    TERM_RED = ''
+    TERM_GREEN = ''
+    TERM_YELLOW = ''
+    TERM_BLUE = ''
+else:
+    TERM_NORMAL = '\033[0m'
+    TERM_RED = '\033[1;31m'
+    TERM_GREEN = '\033[1;32m'
+    TERM_YELLOW = '\033[1;33m'
+    TERM_BLUE = '\033[1;34m'
 
 
 def set_timezone(timezone):
@@ -45,14 +52,26 @@ def set_sighdl_to_reset_timezone(timezone):
     signal.signal(signal.SIGINT, lambda signal, frame: set_timezone_and_exit(timezone))
 
 
+# This is for not lost data on 'win32' with python 'print'.
+# When use python subprocess call another script on win32, output with
+# 'utf-8' encoding, that's the same like linux platform; but when
+# call the python script in 'cmd.exe' shell, we have to output in 'native' encoding.
+def setup_stdio():
+    # For tty using native encoding, otherwise (pipe) use 'utf-8'
+    encoding = sys.stdout.encoding if sys.stdout.isatty() else 'utf-8'
+    # Always override it to avoid encode error
+    sys.stdout = codecs.getwriter(encoding)(sys.stdout.buffer, 'xmlcharrefreplace')
+    sys.stderr = codecs.getwriter(encoding)(sys.stderr.buffer, 'xmlcharrefreplace')
+
+
 def print_test_summary(summary_string, total, passed, failed):
-    print("\n[summary] %s\n" % summary_string)
-    print("TOTAL: %d" % total)
-    print("%sPASS: %d%s" % (TERM_GREEN, passed, TERM_NORMAL))
-    print("%sFAIL: %d%s\n" % (TERM_RED, failed, TERM_NORMAL))
+    print(f"\n[summary] {summary_string}\n")
+    print(f"TOTAL: {total}")
+    print(f"{TERM_GREEN}PASS: {passed}{TERM_NORMAL}")
+    print(f"{TERM_RED}FAIL: {failed}{TERM_NORMAL}\n")
 
     success_color = TERM_GREEN if passed == total else TERM_RED
-    print("%sSuccess: %d%%%s" % (success_color, passed*100/total, TERM_NORMAL))
+    print(f"{success_color}Success: {passed*100/total}{TERM_NORMAL}")
 
 
 def print_test_result(tested, total, is_passed, passed_string, test_path, is_snapshot_generation=None):
@@ -64,7 +83,7 @@ def print_test_result(tested, total, is_passed, passed_string, test_path, is_sna
         snapshot_string = ' (execute snapshot)'
 
     color = TERM_GREEN if is_passed else TERM_RED
-    print("[%4d/%4d] %s%s: %s%s%s" % (tested, total, color, passed_string, test_path, snapshot_string, TERM_NORMAL))
+    print(f"[{tested:>4}/{total:>4}] {color}{passed_string}: {test_path}{snapshot_string}{TERM_NORMAL}")
 
 
 def get_platform_cmd_prefix():
@@ -75,4 +94,4 @@ def get_platform_cmd_prefix():
 
 def get_python_cmd_prefix():
     # python script doesn't have execute permission on github actions windows runner
-    return get_platform_cmd_prefix() + [sys.executable or 'python']
+    return [sys.executable or 'python']

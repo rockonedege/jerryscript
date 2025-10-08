@@ -13,14 +13,16 @@
  * limitations under the License.
  */
 
+#include "ecma-init-finalize.h"
+
 #include "ecma-builtins.h"
 #include "ecma-gc.h"
 #include "ecma-helpers.h"
-#include "ecma-init-finalize.h"
 #include "ecma-lex-env.h"
 #include "ecma-literal-storage.h"
-#include "jmem.h"
+
 #include "jcontext.h"
+#include "jmem.h"
 
 /** \addtogroup ecma ECMA
  * @{
@@ -56,13 +58,13 @@ ecma_init (void)
   JERRY_CONTEXT (stack_base) = (uintptr_t) &sp;
 #endif /* (JERRY_STACK_LIMIT != 0) */
 
-#if JERRY_ESNEXT
   ecma_job_queue_init ();
-#endif /* JERRY_ESNEXT */
 
-#if JERRY_ESNEXT
   JERRY_CONTEXT (current_new_target_p) = NULL;
-#endif /* JERRY_ESNEXT */
+
+#if JERRY_BUILTIN_TYPEDARRAY
+  JERRY_CONTEXT (arraybuffer_compact_allocation_limit) = 256;
+#endif /* JERRY_BUILTIN_TYPEDARRAY */
 } /* ecma_init */
 
 /**
@@ -71,9 +73,7 @@ ecma_init (void)
 void
 ecma_finalize (void)
 {
-#if JERRY_ESNEXT
   JERRY_ASSERT (JERRY_CONTEXT (current_new_target_p) == NULL);
-#endif /* JERRY_ESNEXT */
 
   ecma_finalize_global_environment ();
   uint8_t runs = 0;
@@ -83,12 +83,10 @@ ecma_finalize (void)
     ecma_gc_run ();
     if (++runs >= JERRY_GC_LOOP_LIMIT)
     {
-      jerry_fatal (ERR_UNTERMINATED_GC_LOOPS);
+      jerry_fatal (JERRY_FATAL_UNTERMINATED_GC_LOOPS);
     }
-  }
-  while (JERRY_CONTEXT (ecma_gc_new_objects) != 0);
+  } while (JERRY_CONTEXT (ecma_gc_new_objects) != 0);
 
-#if JERRY_ESNEXT
   jmem_cpointer_t *global_symbols_cp = JERRY_CONTEXT (global_symbols_cp);
 
   for (uint32_t i = 0; i < ECMA_BUILTIN_GLOBAL_SYMBOL_COUNT; i++)
@@ -98,7 +96,6 @@ ecma_finalize (void)
       ecma_deref_ecma_string (ECMA_GET_NON_NULL_POINTER (ecma_string_t, global_symbols_cp[i]));
     }
   }
-#endif /* JERRY_ESNEXT */
 
   ecma_finalize_lit_storage ();
 } /* ecma_finalize */

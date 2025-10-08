@@ -16,8 +16,9 @@
 #ifndef DEBUGGER_H
 #define DEBUGGER_H
 
-#include "ecma-globals.h"
 #include "jerryscript-debugger-transport.h"
+
+#include "ecma-globals.h"
 
 #if JERRY_DEBUGGER
 
@@ -51,8 +52,7 @@
 /**
  * Calculate the size of a message when a count number of items transmitted.
  */
-#define JERRY_DEBUGGER_SEND_SIZE(count, type) \
-  ((size_t) ((count * sizeof (type)) + sizeof (jerry_debugger_send_type_t)))
+#define JERRY_DEBUGGER_SEND_SIZE(count, type) ((size_t) ((count * sizeof (type)) + sizeof (jerry_debugger_send_type_t)))
 
 /**
  * Debugger operation modes:
@@ -113,8 +113,8 @@ typedef enum
  * Set and clear debugger flags.
  */
 #define JERRY_DEBUGGER_UPDATE_FLAGS(flags_to_set, flags_to_clear) \
-  JERRY_CONTEXT (debugger_flags) = ((JERRY_CONTEXT (debugger_flags) | (uint32_t) (flags_to_set)) \
-                                    & (uint32_t) ~(flags_to_clear))
+  JERRY_CONTEXT (debugger_flags) =                                \
+    ((JERRY_CONTEXT (debugger_flags) | (uint32_t) (flags_to_set)) & (uint32_t) ~(flags_to_clear))
 
 /**
  * Types for the package.
@@ -227,11 +227,8 @@ typedef enum
  */
 typedef enum
 {
-  JERRY_DEBUGGER_OUTPUT_OK = 1, /**< output result, no error */
-  JERRY_DEBUGGER_OUTPUT_ERROR = 2, /**< output result, error */
-  JERRY_DEBUGGER_OUTPUT_WARNING = 3, /**< output result, warning */
-  JERRY_DEBUGGER_OUTPUT_DEBUG = 4, /**< output result, debug */
-  JERRY_DEBUGGER_OUTPUT_TRACE = 5, /**< output result, trace */
+  JERRY_DEBUGGER_OUTPUT_PRINT = 1, /**< printed output */
+  JERRY_DEBUGGER_OUTPUT_LOG = 2, /**< logged output */
 } jerry_debugger_output_subtype_t;
 
 /**
@@ -455,7 +452,7 @@ typedef struct
 
 /**
  * Incoming message: get scope variables
-*/
+ */
 typedef struct
 {
   uint8_t type; /**< type of the message */

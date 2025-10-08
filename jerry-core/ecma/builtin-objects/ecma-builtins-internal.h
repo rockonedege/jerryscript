@@ -17,7 +17,7 @@
 #define ECMA_BUILTINS_INTERNAL_H
 
 #ifndef ECMA_BUILTINS_INTERNAL
-# error "!ECMA_BUILTINS_INTERNAL"
+#error "!ECMA_BUILTINS_INTERNAL"
 #endif /* !ECMA_BUILTINS_INTERNAL */
 
 #include "ecma-builtins.h"
@@ -31,12 +31,10 @@ typedef enum
   ECMA_BUILTIN_PROPERTY_SIMPLE, /**< simple value property */
   ECMA_BUILTIN_PROPERTY_NUMBER, /**< number value property */
   ECMA_BUILTIN_PROPERTY_STRING, /**< string value property */
-#if JERRY_ESNEXT
   ECMA_BUILTIN_PROPERTY_SYMBOL, /**< symbol value property */
   ECMA_BUILTIN_PROPERTY_INTRINSIC_PROPERTY, /**< intrinsic routine property */
   ECMA_BUILTIN_PROPERTY_ACCESSOR_BUILTIN_FUNCTION, /**< full accessor property with builtin function object
                                                         getter/setter pair */
-#endif /* JERRY_ESNEXT */
   ECMA_BUILTIN_PROPERTY_OBJECT, /**< builtin object property */
   ECMA_BUILTIN_PROPERTY_ROUTINE, /**< routine property */
   ECMA_BUILTIN_PROPERTY_ACCESSOR_READ_WRITE, /**< full accessor property */
@@ -51,11 +49,9 @@ typedef enum
 {
   ECMA_BUILTIN_NUMBER_MAX = 256, /**< value of ECMA_NUMBER_MAX_VALUE */
   ECMA_BUILTIN_NUMBER_MIN, /**< value of ECMA_NUMBER_MIN_VALUE */
-#if JERRY_ESNEXT
   ECMA_BUILTIN_NUMBER_EPSILON, /**< value of ECMA_NUMBER_EPSILON */
   ECMA_BUILTIN_NUMBER_MAX_SAFE_INTEGER, /**< value of ECMA_NUMBER_MAX_SAFE_INTEGER */
   ECMA_BUILTIN_NUMBER_MIN_SAFE_INTEGER, /**< value of ECMA_NUMBER_MIN_SAFE_INTEGER */
-#endif /* JERRY_ESNEXT */
   ECMA_BUILTIN_NUMBER_E, /**< value of ECMA_NUMBER_E */
   ECMA_BUILTIN_NUMBER_PI, /**< value of ECMA_NUMBER_PI */
   ECMA_BUILTIN_NUMBER_LN10, /**< value of ECMA_NUMBER_LN10 */
@@ -80,36 +76,20 @@ typedef struct
   uint16_t value; /**< value of the property */
 } ecma_builtin_property_descriptor_t;
 
-#define BUILTIN_ROUTINE(builtin_id, \
-                        object_type, \
-                        object_prototype_builtin_id, \
-                        is_extensible, \
-                        lowercase_name) \
-extern const ecma_builtin_property_descriptor_t \
-ecma_builtin_ ## lowercase_name ## _property_descriptor_list[]; \
-ecma_value_t \
-ecma_builtin_ ## lowercase_name ## _dispatch_call (const ecma_value_t *, \
-                                                   uint32_t); \
-ecma_value_t \
-ecma_builtin_ ## lowercase_name ## _dispatch_construct (const ecma_value_t *, \
-                                                        uint32_t); \
-ecma_value_t \
-ecma_builtin_ ## lowercase_name ## _dispatch_routine (uint8_t builtin_routine_id, \
-                                                      ecma_value_t this_arg_value, \
-                                                      const ecma_value_t [], \
-                                                      uint32_t);
-#define BUILTIN(builtin_id, \
-                object_type, \
-                object_prototype_builtin_id, \
-                is_extensible, \
-                lowercase_name) \
-extern const ecma_builtin_property_descriptor_t \
-ecma_builtin_ ## lowercase_name ## _property_descriptor_list[]; \
-ecma_value_t \
-ecma_builtin_ ## lowercase_name ## _dispatch_routine (uint8_t builtin_routine_id, \
-                                                      ecma_value_t this_arg_value, \
-                                                      const ecma_value_t [], \
-                                                      uint32_t);
+#define BUILTIN_ROUTINE(builtin_id, object_type, object_prototype_builtin_id, is_extensible, lowercase_name)  \
+  extern const ecma_builtin_property_descriptor_t ecma_builtin_##lowercase_name##_property_descriptor_list[]; \
+  ecma_value_t ecma_builtin_##lowercase_name##_dispatch_call (const ecma_value_t *, uint32_t);                \
+  ecma_value_t ecma_builtin_##lowercase_name##_dispatch_construct (const ecma_value_t *, uint32_t);           \
+  ecma_value_t ecma_builtin_##lowercase_name##_dispatch_routine (uint8_t builtin_routine_id,                  \
+                                                                 ecma_value_t this_arg_value,                 \
+                                                                 const ecma_value_t[],                        \
+                                                                 uint32_t);
+#define BUILTIN(builtin_id, object_type, object_prototype_builtin_id, is_extensible, lowercase_name)          \
+  extern const ecma_builtin_property_descriptor_t ecma_builtin_##lowercase_name##_property_descriptor_list[]; \
+  ecma_value_t ecma_builtin_##lowercase_name##_dispatch_routine (uint8_t builtin_routine_id,                  \
+                                                                 ecma_value_t this_arg_value,                 \
+                                                                 const ecma_value_t[],                        \
+                                                                 uint32_t);
 #include "ecma-builtins.inc.h"
 
 #undef BUILTIN_ROUTINE

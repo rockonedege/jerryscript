@@ -16,8 +16,8 @@
 #ifndef ECMA_BUILTIN_HELPERS_H
 #define ECMA_BUILTIN_HELPERS_H
 
-#include "ecma-globals.h"
 #include "ecma-exceptions.h"
+#include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-regexp-object.h"
 
@@ -27,6 +27,37 @@
  * \addtogroup ecmabuiltinhelpers ECMA builtin helper operations
  * @{
  */
+
+/**
+ * List of built-in routine identifiers.
+ */
+enum
+{
+  /** These routines must be in this order */
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_START = 0,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_EXEC,
+#if JERRY_BUILTIN_ANNEXB
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_COMPILE,
+#endif /* JERRY_BUILTIN_ANNEXB */
+
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_TEST,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_TO_STRING,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_GET_SOURCE,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_GET_FLAGS,
+
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_GET_GLOBAL,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_GET_IGNORE_CASE,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_GET_MULTILINE,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_GET_STICKY,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_GET_UNICODE,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_GET_DOT_ALL,
+
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_SYMBOL_SEARCH,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_SYMBOL_MATCH,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_SYMBOL_REPLACE,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_SYMBOL_SPLIT,
+  ECMA_REGEXP_PROTOTYPE_ROUTINE_SYMBOL_MATCH_ALL,
+};
 
 /**
  * Mode of string index routine.
@@ -41,45 +72,38 @@ typedef enum
   ECMA_STRING_ENDS_WITH /**< String.includes: ECMA-262 v6, 21.1.3.6 */
 } ecma_string_index_of_mode_t;
 
-ecma_value_t
-ecma_builtin_helper_object_to_string (const ecma_value_t this_arg);
-ecma_string_t *
-ecma_builtin_helper_get_to_locale_string_at_index (ecma_object_t *obj_p, ecma_length_t index);
-ecma_value_t
-ecma_builtin_helper_array_concat_value (ecma_object_t *obj_p, ecma_length_t *length_p, ecma_value_t value);
-ecma_value_t
-ecma_builtin_helper_uint32_index_normalize (ecma_value_t arg, uint32_t length, uint32_t *number_p);
+ecma_value_t ecma_builtin_helper_object_to_string (const ecma_value_t this_arg);
+ecma_string_t *ecma_builtin_helper_get_to_locale_string_at_index (ecma_object_t *obj_p, ecma_length_t index);
+ecma_value_t ecma_builtin_helper_array_concat_value (ecma_object_t *obj_p, ecma_length_t *length_p, ecma_value_t value);
+ecma_value_t ecma_builtin_helper_uint32_index_normalize (ecma_value_t arg, uint32_t length, uint32_t *number_p);
 ecma_value_t
 ecma_builtin_helper_array_index_normalize (ecma_value_t arg, ecma_length_t length, ecma_length_t *number_p);
-ecma_value_t
-ecma_builtin_helper_string_index_normalize (ecma_number_t index, uint32_t length, bool nan_to_zero);
-ecma_value_t
-ecma_builtin_helper_string_prototype_object_index_of (ecma_string_t *original_str_p, ecma_value_t arg1,
-                                                      ecma_value_t arg2, ecma_string_index_of_mode_t mode);
+ecma_value_t ecma_builtin_helper_string_index_normalize (ecma_number_t index, uint32_t length, bool nan_to_zero);
+ecma_value_t ecma_builtin_helper_string_prototype_object_index_of (ecma_string_t *original_str_p,
+                                                                   ecma_value_t arg1,
+                                                                   ecma_value_t arg2,
+                                                                   ecma_string_index_of_mode_t mode);
 uint32_t
-ecma_builtin_helper_string_find_index (ecma_string_t *original_str_p, ecma_string_t *search_str_p,
-                                       uint32_t start_pos);
+ecma_builtin_helper_string_find_index (ecma_string_t *original_str_p, ecma_string_t *search_str_p, uint32_t start_pos);
 ecma_value_t
 ecma_builtin_helper_def_prop (ecma_object_t *obj_p, ecma_string_t *name_p, ecma_value_t value, uint32_t opts);
 
 ecma_value_t
-ecma_builtin_helper_def_prop_by_index (ecma_object_t *obj_p, ecma_length_t index, ecma_value_t value,
-                                       uint32_t opts);
-ecma_value_t
-ecma_builtin_helper_calculate_index (ecma_value_t index, ecma_length_t length, ecma_length_t *out_index);
+ecma_builtin_helper_def_prop_by_index (ecma_object_t *obj_p, ecma_length_t index, ecma_value_t value, uint32_t opts);
+ecma_value_t ecma_builtin_helper_calculate_index (ecma_value_t index, ecma_length_t length, ecma_length_t *out_index);
 
 /**
  * Context for replace substitutions
  */
 typedef struct
 {
-  ecma_stringbuilder_t builder;      /**< result string builder */
-  const lit_utf8_byte_t *string_p;   /**< source string */
-  lit_utf8_size_t string_size;       /**< source string size */
-  const lit_utf8_byte_t *matched_p;  /**< matched string */
-  lit_utf8_size_t matched_size;      /**< matcehd string size */
-  lit_utf8_size_t match_byte_pos;    /**< byte position of the match in the source string */
-  uint16_t flags;                    /**< replace flags */
+  ecma_stringbuilder_t builder; /**< result string builder */
+  const lit_utf8_byte_t *string_p; /**< source string */
+  lit_utf8_size_t string_size; /**< source string size */
+  const lit_utf8_byte_t *matched_p; /**< matched string */
+  lit_utf8_size_t matched_size; /**< matcehd string size */
+  lit_utf8_size_t match_byte_pos; /**< byte position of the match in the source string */
+  uint16_t flags; /**< replace flags */
 
   /**
    * Capture results
@@ -89,20 +113,15 @@ typedef struct
 #if JERRY_BUILTIN_REGEXP
     const ecma_regexp_capture_t *captures_p; /**< array of regexp capturing groups */
 #endif /* JERRY_BUILTIN_REGEXP */
-    const ecma_collection_t *collection_p;   /**< collection of captured substrings */
+    const ecma_collection_t *collection_p; /**< collection of captured substrings */
   } u;
 
-  uint32_t capture_count;            /**< number of captures in the capturing group array */
-  ecma_string_t *replace_str_p;      /**< replacement string */
+  uint32_t capture_count; /**< number of captures in the capturing group array */
+  ecma_string_t *replace_str_p; /**< replacement string */
 } ecma_replace_context_t;
 
-void
-ecma_builtin_replace_substitute (ecma_replace_context_t *ctx_p);
-
-#if JERRY_ESNEXT
-bool
-ecma_builtin_is_regexp_exec (ecma_extended_object_t *obj_p);
-#endif /* JERRY_ESNEXT */
+void ecma_builtin_replace_substitute (ecma_replace_context_t *ctx_p);
+bool ecma_builtin_is_regexp_exec (ecma_extended_object_t *obj_p);
 
 #if JERRY_BUILTIN_DATE
 
@@ -114,35 +133,37 @@ ecma_builtin_is_regexp_exec (ecma_extended_object_t *obj_p);
  */
 
 /** Hours in a day. */
-#define ECMA_DATE_HOURS_PER_DAY         (24)
+#define ECMA_DATE_HOURS_PER_DAY (24)
 
 /** Minutes in an hour. */
-#define ECMA_DATE_MINUTES_PER_HOUR      (60)
+#define ECMA_DATE_MINUTES_PER_HOUR (60)
 
 /** Seconds in a minute. */
-#define ECMA_DATE_SECONDS_PER_MINUTE    (60)
+#define ECMA_DATE_SECONDS_PER_MINUTE (60)
 
 /** Milliseconds in a second. */
-#define ECMA_DATE_MS_PER_SECOND         (1000)
+#define ECMA_DATE_MS_PER_SECOND (1000)
 
 /** ECMA_DATE_MS_PER_MINUTE == 60000 */
-#define ECMA_DATE_MS_PER_MINUTE         (ECMA_DATE_MS_PER_SECOND * ECMA_DATE_SECONDS_PER_MINUTE)
+#define ECMA_DATE_MS_PER_MINUTE (ECMA_DATE_MS_PER_SECOND * ECMA_DATE_SECONDS_PER_MINUTE)
 
 /** ECMA_DATE_MS_PER_HOUR == 3600000 */
-#define ECMA_DATE_MS_PER_HOUR           (ECMA_DATE_MS_PER_MINUTE * ECMA_DATE_MINUTES_PER_HOUR)
+#define ECMA_DATE_MS_PER_HOUR (ECMA_DATE_MS_PER_MINUTE * ECMA_DATE_MINUTES_PER_HOUR)
 
 /** ECMA_DATE_MS_PER_DAY == 86400000 */
-#define ECMA_DATE_MS_PER_DAY            ((ECMA_DATE_MS_PER_HOUR * ECMA_DATE_HOURS_PER_DAY))
+#define ECMA_DATE_MS_PER_DAY ((ECMA_DATE_MS_PER_HOUR * ECMA_DATE_HOURS_PER_DAY))
 
-#define ECMA_DATE_DAYS_IN_YEAR          (365)
+#define ECMA_DATE_DAYS_IN_YEAR (365)
 
-#define ECMA_DATE_DAYS_IN_LEAP_YEAR     (366)
+#define ECMA_DATE_DAYS_IN_LEAP_YEAR (366)
+
+#define ECMA_DATE_YEAR_LIMIT (275800)
 
 /**
  * This gives a range of 8,640,000,000,000,000 milliseconds
  * to either side of 01 January, 1970 UTC.
  */
-#define ECMA_DATE_MAX_VALUE             8.64e15
+#define ECMA_DATE_MAX_VALUE 8.64e15
 
 /**
  * Timezone type.
@@ -168,7 +189,7 @@ int32_t ecma_date_sec_from_time (ecma_number_t time);
 int32_t ecma_date_ms_from_time (ecma_number_t time);
 int32_t ecma_date_time_in_day_from_time (ecma_number_t time);
 
-ecma_number_t ecma_date_local_time_zone_adjustment (ecma_number_t time);
+int32_t ecma_date_local_time_zone_adjustment (ecma_number_t time);
 ecma_number_t ecma_date_utc (ecma_number_t time);
 ecma_number_t ecma_date_make_time (ecma_number_t hour, ecma_number_t min, ecma_number_t sec, ecma_number_t ms);
 ecma_number_t ecma_date_make_day (ecma_number_t year, ecma_number_t month, ecma_number_t date);
@@ -187,13 +208,13 @@ ecma_value_t ecma_date_value_to_time_string (ecma_number_t datetime_number);
 /* ecma-builtin-helper-json.c */
 
 /**
- * Occurence stack item of JSON.stringify()
+ * Occurrence stack item of JSON.stringify()
  */
-typedef struct struct_ecma_json_occurence_stack_item_t
+typedef struct struct_ecma_json_occurrence_stack_item_t
 {
-  struct struct_ecma_json_occurence_stack_item_t *next_p; /**< next stack item */
+  struct struct_ecma_json_occurrence_stack_item_t *next_p; /**< next stack item */
   ecma_object_t *object_p; /**< current object */
-} ecma_json_occurence_stack_item_t;
+} ecma_json_occurrence_stack_item_t;
 
 /**
  * Context for JSON.stringify()
@@ -204,7 +225,7 @@ typedef struct
   ecma_collection_t *property_list_p;
 
   /** Collection for traversing objects. */
-  ecma_json_occurence_stack_item_t *occurence_stack_last_p;
+  ecma_json_occurrence_stack_item_t *occurrence_stack_last_p;
 
   /** The actual indentation text. */
   ecma_stringbuilder_t indent_builder;
@@ -219,21 +240,20 @@ typedef struct
   ecma_stringbuilder_t result_builder;
 } ecma_json_stringify_context_t;
 
-ecma_value_t ecma_builtin_json_parse_buffer (const lit_utf8_byte_t * str_start_p,
-                                             lit_utf8_size_t string_size);
+ecma_value_t ecma_builtin_json_parse_buffer (const lit_utf8_byte_t *str_start_p, lit_utf8_size_t string_size);
 ecma_value_t ecma_builtin_json_stringify_no_opts (const ecma_value_t value);
-bool ecma_json_has_object_in_stack (ecma_json_occurence_stack_item_t *stack_p, ecma_object_t *object_p);
+bool ecma_json_has_object_in_stack (ecma_json_occurrence_stack_item_t *stack_p, ecma_object_t *object_p);
 
-ecma_value_t
-ecma_builtin_helper_json_create_non_formatted_json (lit_utf8_byte_t left_bracket, lit_utf8_byte_t right_bracket,
-                                                    ecma_collection_t *partial_p);
+ecma_value_t ecma_builtin_helper_json_create_non_formatted_json (lit_utf8_byte_t left_bracket,
+                                                                 lit_utf8_byte_t right_bracket,
+                                                                 ecma_collection_t *partial_p);
 #endif /* JERRY_BUILTIN_JSON */
 
 /* ecma-builtin-helper-error.c */
 
-ecma_value_t
-ecma_builtin_helper_error_dispatch_call (jerry_error_t error_type, const ecma_value_t *arguments_list_p,
-                                         uint32_t arguments_list_len);
+ecma_value_t ecma_builtin_helper_error_dispatch_call (jerry_error_t error_type,
+                                                      const ecma_value_t *arguments_list_p,
+                                                      uint32_t arguments_list_len);
 
 /* ecma-builtin-helpers-sort.c */
 
@@ -243,7 +263,7 @@ ecma_builtin_helper_error_dispatch_call (jerry_error_t error_type, const ecma_va
 typedef ecma_value_t (*ecma_builtin_helper_sort_compare_fn_t) (ecma_value_t lhs, /**< left value */
                                                                ecma_value_t rhs, /**< right value */
                                                                ecma_value_t compare_func, /**< compare function */
-                                                               ecma_object_t *array_buffer_p); /**< arrayBuffer */
+                                                               ecma_object_t *array_buffer_p /**< arrayBuffer */);
 
 ecma_value_t ecma_builtin_helper_array_merge_sort_helper (ecma_value_t *array_p,
                                                           uint32_t length,

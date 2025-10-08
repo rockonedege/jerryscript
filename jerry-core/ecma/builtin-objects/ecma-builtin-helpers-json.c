@@ -14,8 +14,9 @@
  */
 
 #include "ecma-alloc.h"
-#include "ecma-helpers.h"
 #include "ecma-builtin-helpers.h"
+#include "ecma-helpers.h"
+
 #include "lit-char-helpers.h"
 
 #if JERRY_BUILTIN_JSON
@@ -28,17 +29,17 @@
  */
 
 /**
- * Check whether the object is pushed onto the occurence stack
+ * Check whether the object is pushed onto the occurrence stack
  *
  * Used by:
  *         - ecma_builtin_json_object step 1
  *         - ecma_builtin_json_array step 1
  *
- * @return true - if the object is pushed onto the occurence stack
+ * @return true - if the object is pushed onto the occurrence stack
  *         false - otherwise
  */
 bool
-ecma_json_has_object_in_stack (ecma_json_occurence_stack_item_t *stack_p, /**< stack */
+ecma_json_has_object_in_stack (ecma_json_occurrence_stack_item_t *stack_p, /**< stack */
                                ecma_object_t *object_p) /**< object */
 {
   while (stack_p != NULL)
@@ -54,9 +55,9 @@ ecma_json_has_object_in_stack (ecma_json_occurence_stack_item_t *stack_p, /**< s
   return false;
 } /* ecma_json_has_object_in_stack */
 
-#endif /* JERRY_BUILTIN_JSON */
-
 /**
  * @}
  * @}
  */
+
+#endif /* JERRY_BUILTIN_JSON */

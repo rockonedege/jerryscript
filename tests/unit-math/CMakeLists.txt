@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required (VERSION 2.8.12)
+cmake_minimum_required (VERSION 3.10)
 project (unit-math C)
 
 # Unit tests main modules
@@ -30,6 +30,9 @@ foreach(SOURCE_UNIT_TEST_MAIN ${SOURCE_UNIT_TEST_MAIN_MODULES})
   add_executable(${TARGET_NAME} ${SOURCE_UNIT_TEST_MAIN})
   set_property(TARGET ${TARGET_NAME} PROPERTY LINK_FLAGS "${LINKER_FLAGS_COMMON}")
   set_property(TARGET ${TARGET_NAME} PROPERTY RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+  if("${PLATFORM}" STREQUAL "DARWIN")
+    set_property(TARGET ${TARGET_NAME} PROPERTY COMPILE_OPTIONS "-Wno-literal-range")
+  endif()
 
   target_link_libraries(${TARGET_NAME} jerry-math)
 

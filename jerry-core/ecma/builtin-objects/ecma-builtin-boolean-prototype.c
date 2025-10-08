@@ -22,6 +22,7 @@
 #include "ecma-helpers.h"
 #include "ecma-objects.h"
 #include "ecma-string-object.h"
+
 #include "jrt.h"
 
 #if JERRY_BUILTIN_BOOLEAN
@@ -45,7 +46,7 @@ enum
 };
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-boolean-prototype.inc.h"
-#define BUILTIN_UNDERSCORED_ID boolean_prototype
+#define BUILTIN_UNDERSCORED_ID  boolean_prototype
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -88,7 +89,7 @@ ecma_builtin_boolean_prototype_object_value_of (ecma_value_t this_arg) /**< this
     }
   }
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not a Boolean object"));
+  return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_BOOLEAN_OBJECT);
 } /* ecma_builtin_boolean_prototype_object_value_of */
 
 /**

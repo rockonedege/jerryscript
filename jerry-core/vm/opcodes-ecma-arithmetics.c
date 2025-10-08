@@ -18,10 +18,10 @@
 #include "ecma-conversion.h"
 #include "ecma-exceptions.h"
 #include "ecma-helpers.h"
-#include "ecma-number-arithmetic.h"
 #include "ecma-objects.h"
-#include "opcodes.h"
+
 #include "jrt-libc-includes.h"
+#include "opcodes.h"
 
 /** \addtogroup vm Virtual machine
  * @{
@@ -88,16 +88,28 @@ do_number_arithmetic (number_arithmetic_op op, /**< number arithmetic operation 
       }
       case NUMBER_ARITHMETIC_REMAINDER:
       {
-        result = ecma_op_number_remainder (left_number, right_number);
+        if (ecma_number_is_nan (left_number) || ecma_number_is_nan (right_number)
+            || ecma_number_is_infinity (left_number) || ecma_number_is_zero (right_number))
+        {
+          result = ecma_number_make_nan ();
+          break;
+        }
+
+        if (ecma_number_is_infinity (right_number)
+            || (ecma_number_is_zero (left_number) && !ecma_number_is_zero (right_number)))
+        {
+          result = left_number;
+          break;
+        }
+
+        result = ecma_number_remainder (left_number, right_number);
         break;
       }
-#if JERRY_ESNEXT
       case NUMBER_ARITHMETIC_EXPONENTIATION:
       {
         result = ecma_number_pow (left_number, right_number);
         break;
       }
-#endif /* JERRY_ESNEXT */
     }
 
     ret_value = ecma_make_number_value (result);
@@ -136,13 +148,11 @@ do_number_arithmetic (number_arithmetic_op op, /**< number arithmetic operation 
         ret_value = ecma_bigint_div_mod (left_value, right_value, true);
         break;
       }
-#if JERRY_ESNEXT
       case NUMBER_ARITHMETIC_EXPONENTIATION:
       {
         ret_value = ecma_bigint_pow (left_value, right_value);
         break;
       }
-#endif /* JERRY_ESNEXT */
     }
 
     ecma_free_value (left_value);
@@ -200,8 +210,7 @@ opfunc_addition (ecma_value_t left_value, /**< left value */
 
   ecma_value_t ret_value = ECMA_VALUE_EMPTY;
 
-  if (ecma_is_value_string (left_value)
-      || ecma_is_value_string (right_value))
+  if (ecma_is_value_string (left_value) || ecma_is_value_string (right_value))
   {
     ecma_string_t *string1_p = ecma_op_to_string (left_value);
 
@@ -240,8 +249,7 @@ opfunc_addition (ecma_value_t left_value, /**< left value */
     ecma_deref_ecma_string (string2_p);
   }
 #if JERRY_BUILTIN_BIGINT
-  else if (JERRY_UNLIKELY (ecma_is_value_bigint (left_value))
-           && JERRY_UNLIKELY (ecma_is_value_bigint (right_value)))
+  else if (JERRY_UNLIKELY (ecma_is_value_bigint (left_value)) && JERRY_UNLIKELY (ecma_is_value_bigint (right_value)))
   {
     ret_value = ecma_bigint_add_sub (left_value, right_value, true);
   }
@@ -304,7 +312,7 @@ opfunc_unary_operation (ecma_value_t left_value, /**< left value */
 
   if (is_plus)
   {
-    ret_value = ecma_raise_type_error (ECMA_ERR_MSG ("Unary plus is not allowed for BigInts"));
+    ret_value = ecma_raise_type_error (ECMA_ERR_UNARY_PLUS_IS_NOT_ALLOWED_FOR_BIGINTS);
   }
   else
   {

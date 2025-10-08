@@ -13,8 +13,9 @@
  * limitations under the License.
  */
 
-#include "js-parser-internal.h"
 #include "ecma-helpers.h"
+
+#include "js-parser-internal.h"
 
 #if JERRY_PARSER
 
@@ -79,11 +80,11 @@ parser_emit_two_bytes (parser_context_t *context_p, /**< context */
  * @param context_p parser context
  * @param byte byte
  */
-#define PARSER_APPEND_TO_BYTE_CODE(context_p, byte) \
+#define PARSER_APPEND_TO_BYTE_CODE(context_p, byte)                        \
   if ((context_p)->byte_code.last_position >= PARSER_CBC_STREAM_PAGE_SIZE) \
-  { \
-    parser_cbc_stream_alloc_page ((context_p), &(context_p)->byte_code); \
-  } \
+  {                                                                        \
+    parser_cbc_stream_alloc_page ((context_p), &(context_p)->byte_code);   \
+  }                                                                        \
   (context_p)->byte_code.last_p->bytes[(context_p)->byte_code.last_position++] = (uint8_t) (byte)
 
 #if JERRY_PARSER_DUMP_BYTE_CODE
@@ -177,16 +178,14 @@ parser_flush_cbc (parser_context_t *context_p) /**< context */
   }
 
   JERRY_ASSERT ((flags >> CBC_STACK_ADJUST_SHIFT) >= CBC_STACK_ADJUST_BASE
-                 || (CBC_STACK_ADJUST_BASE - (flags >> CBC_STACK_ADJUST_SHIFT)) <= context_p->stack_depth);
+                || (CBC_STACK_ADJUST_BASE - (flags >> CBC_STACK_ADJUST_SHIFT)) <= context_p->stack_depth);
   PARSER_PLUS_EQUAL_U16 (context_p->stack_depth, CBC_STACK_ADJUST_VALUE (flags));
 
   if (flags & (CBC_HAS_LITERAL_ARG | CBC_HAS_LITERAL_ARG2))
   {
     uint16_t literal_index = context_p->last_cbc.literal_index;
 
-    parser_emit_two_bytes (context_p,
-                           (uint8_t) (literal_index & 0xff),
-                           (uint8_t) (literal_index >> 8));
+    parser_emit_two_bytes (context_p, (uint8_t) (literal_index & 0xff), (uint8_t) (literal_index >> 8));
     context_p->byte_code_size += 2;
   }
 
@@ -194,18 +193,14 @@ parser_flush_cbc (parser_context_t *context_p) /**< context */
   {
     uint16_t literal_index = context_p->last_cbc.value;
 
-    parser_emit_two_bytes (context_p,
-                           (uint8_t) (literal_index & 0xff),
-                           (uint8_t) (literal_index >> 8));
+    parser_emit_two_bytes (context_p, (uint8_t) (literal_index & 0xff), (uint8_t) (literal_index >> 8));
     context_p->byte_code_size += 2;
 
     if (!(flags & CBC_HAS_LITERAL_ARG))
     {
       literal_index = context_p->last_cbc.third_literal_index;
 
-      parser_emit_two_bytes (context_p,
-                             (uint8_t) (literal_index & 0xff),
-                             (uint8_t) (literal_index >> 8));
+      parser_emit_two_bytes (context_p, (uint8_t) (literal_index & 0xff), (uint8_t) (literal_index >> 8));
       context_p->byte_code_size += 2;
     }
   }
@@ -251,13 +246,11 @@ parser_flush_cbc (parser_context_t *context_p) /**< context */
 
     if (flags & CBC_HAS_BYTE_ARG)
     {
-      if (last_opcode == CBC_PUSH_NUMBER_POS_BYTE
-          || last_opcode == CBC_PUSH_LITERAL_PUSH_NUMBER_POS_BYTE)
+      if (last_opcode == CBC_PUSH_NUMBER_POS_BYTE || last_opcode == CBC_PUSH_LITERAL_PUSH_NUMBER_POS_BYTE)
       {
         JERRY_DEBUG_MSG (" number:%d", (int) context_p->last_cbc.value + 1);
       }
-      else if (last_opcode == CBC_PUSH_NUMBER_NEG_BYTE
-               || last_opcode == CBC_PUSH_LITERAL_PUSH_NUMBER_NEG_BYTE)
+      else if (last_opcode == CBC_PUSH_NUMBER_NEG_BYTE || last_opcode == CBC_PUSH_LITERAL_PUSH_NUMBER_NEG_BYTE)
       {
         JERRY_DEBUG_MSG (" number:%d", -((int) context_p->last_cbc.value + 1));
       }
@@ -434,15 +427,13 @@ parser_emit_cbc_push_number (parser_context_t *context_p, /**< context */
 
   if (lit_value == PARSER_INVALID_LITERAL_INDEX)
   {
-    opcode = (is_negative_number ? CBC_PUSH_NUMBER_NEG_BYTE
-                                 : CBC_PUSH_NUMBER_POS_BYTE);
+    opcode = (is_negative_number ? CBC_PUSH_NUMBER_NEG_BYTE : CBC_PUSH_NUMBER_POS_BYTE);
 
     JERRY_ASSERT (CBC_STACK_ADJUST_VALUE (PARSER_GET_FLAGS (opcode)) == 1);
   }
   else
   {
-    opcode = (is_negative_number ? CBC_PUSH_LITERAL_PUSH_NUMBER_NEG_BYTE
-                                 : CBC_PUSH_LITERAL_PUSH_NUMBER_POS_BYTE);
+    opcode = (is_negative_number ? CBC_PUSH_LITERAL_PUSH_NUMBER_NEG_BYTE : CBC_PUSH_LITERAL_PUSH_NUMBER_POS_BYTE);
     JERRY_ASSERT (CBC_STACK_ADJUST_VALUE (PARSER_GET_FLAGS (opcode)) == 2);
 
     context_p->last_cbc.literal_index = lit_value;
@@ -494,7 +485,7 @@ parser_emit_cbc_forward_branch (parser_context_t *context_p, /**< context */
 
   /* Branch opcodes never push anything onto the stack. */
   JERRY_ASSERT ((flags >> CBC_STACK_ADJUST_SHIFT) >= CBC_STACK_ADJUST_BASE
-                 || (CBC_STACK_ADJUST_BASE - (flags >> CBC_STACK_ADJUST_SHIFT)) <= context_p->stack_depth);
+                || (CBC_STACK_ADJUST_BASE - (flags >> CBC_STACK_ADJUST_SHIFT)) <= context_p->stack_depth);
   PARSER_PLUS_EQUAL_U16 (context_p->stack_depth, CBC_STACK_ADJUST_VALUE (flags));
 
 #if JERRY_PARSER_DUMP_BYTE_CODE
@@ -606,7 +597,7 @@ parser_emit_cbc_backward_branch (parser_context_t *context_p, /**< context */
 
   /* Branch opcodes never push anything onto the stack. */
   JERRY_ASSERT ((flags >> CBC_STACK_ADJUST_SHIFT) >= CBC_STACK_ADJUST_BASE
-                 || (CBC_STACK_ADJUST_BASE - (flags >> CBC_STACK_ADJUST_SHIFT)) <= context_p->stack_depth);
+                || (CBC_STACK_ADJUST_BASE - (flags >> CBC_STACK_ADJUST_SHIFT)) <= context_p->stack_depth);
   PARSER_PLUS_EQUAL_U16 (context_p->stack_depth, CBC_STACK_ADJUST_VALUE (flags));
 
 #if JERRY_PARSER_DUMP_BYTE_CODE
@@ -673,7 +664,7 @@ parser_new_ecma_string_from_literal (lexer_literal_t *literal_p) /**< literal */
   }
 
   return new_string;
-} /* parser_new_ecma_string_from_literal  */
+} /* parser_new_ecma_string_from_literal */
 
 /**
  * Set a branch to the current byte code position
@@ -761,8 +752,6 @@ parser_set_continues_to_current_position (parser_context_t *context_p, /**< cont
   }
 } /* parser_set_continues_to_current_position */
 
-#if JERRY_ESNEXT
-
 /**
  * Return the size of internal record corresponding to a class field
  *
@@ -815,8 +804,7 @@ parser_reverse_class_fields (parser_context_t *context_p, /**< context */
       has_fields = true;
       context_p->stack_top_uint8 = class_field_type;
     }
-  }
-  while (current_p < data_end_p);
+  } while (current_p < data_end_p);
 
   parser_stack_iterator_init (context_p, &iterator);
   current_p = data_end_p;
@@ -845,8 +833,7 @@ parser_reverse_class_fields (parser_context_t *context_p, /**< context */
         current_p[-1] |= PARSER_CLASS_FIELD_END;
       }
       current_p -= info_size;
-    }
-    while (current_p > data_p);
+    } while (current_p > data_p);
   }
   else
   {
@@ -872,552 +859,11 @@ parser_reverse_class_fields (parser_context_t *context_p, /**< context */
         parser_stack_iterator_write (&iterator, current_p, info_size);
         parser_stack_iterator_skip (&iterator, info_size);
       }
-    }
-    while (current_p > data_p);
+    } while (current_p > data_p);
   }
 
   parser_free (data_p, fields_size);
 } /* parser_reverse_class_fields */
-
-#endif /* JERRY_ESNEXT */
-
-#if JERRY_ERROR_MESSAGES
-/**
- * Returns with the string representation of the error
- */
-const char *
-parser_error_to_string (parser_error_t error) /**< error code */
-{
-  switch (error)
-  {
-    case PARSER_ERR_OUT_OF_MEMORY:
-    {
-      return "Out of memory";
-    }
-    case PARSER_ERR_LITERAL_LIMIT_REACHED:
-    {
-      return "Maximum number of literals reached";
-    }
-    case PARSER_ERR_SCOPE_STACK_LIMIT_REACHED:
-    {
-      return "Maximum depth of scope stack reached";
-    }
-    case PARSER_ERR_ARGUMENT_LIMIT_REACHED:
-    {
-      return "Maximum number of function arguments reached";
-    }
-    case PARSER_ERR_STACK_LIMIT_REACHED:
-    {
-      return "Maximum function stack size reached";
-    }
-    case PARSER_ERR_INVALID_CHARACTER:
-    {
-      return "Invalid (unexpected) character";
-    }
-    case PARSER_ERR_INVALID_OCTAL_DIGIT:
-    {
-      return "Invalid octal digit";
-    }
-    case PARSER_ERR_INVALID_HEX_DIGIT:
-    {
-      return "Invalid hexadecimal digit";
-    }
-#if JERRY_ESNEXT
-    case PARSER_ERR_INVALID_BIN_DIGIT:
-    {
-      return "Invalid binary digit";
-    }
-#endif /* JERRY_ESNEXT */
-    case PARSER_ERR_INVALID_ESCAPE_SEQUENCE:
-    {
-      return "Invalid escape sequence";
-    }
-    case PARSER_ERR_INVALID_UNICODE_ESCAPE_SEQUENCE:
-    {
-      return "Invalid unicode escape sequence";
-    }
-    case PARSER_ERR_INVALID_IDENTIFIER_START:
-    {
-      return "Character cannot be start of an identifier";
-    }
-    case PARSER_ERR_INVALID_IDENTIFIER_PART:
-    {
-      return "Character cannot be part of an identifier";
-    }
-    case PARSER_ERR_INVALID_KEYWORD:
-    {
-      return "Escape sequences are not allowed in keywords";
-    }
-    case PARSER_ERR_INVALID_NUMBER:
-    {
-      return "Invalid number";
-    }
-    case PARSER_ERR_MISSING_EXPONENT:
-    {
-      return "Missing exponent part";
-    }
-    case PARSER_ERR_INVALID_UNDERSCORE_IN_NUMBER:
-    {
-      return "Invalid use of underscore character in number literals";
-    }
-    case PARSER_ERR_IDENTIFIER_AFTER_NUMBER:
-    {
-      return "Identifier cannot start after a number";
-    }
-#if JERRY_BUILTIN_BIGINT
-    case PARSER_ERR_INVALID_BIGINT:
-    {
-      return "Number is not a valid BigInt";
-    }
-#endif /* JERRY_BUILTIN_BIGINT */
-    case PARSER_ERR_INVALID_REGEXP:
-    {
-      return "Invalid regular expression";
-    }
-    case PARSER_ERR_UNKNOWN_REGEXP_FLAG:
-    {
-      return "Unknown regexp flag";
-    }
-    case PARSER_ERR_DUPLICATED_REGEXP_FLAG:
-    {
-      return "Duplicated regexp flag";
-    }
-    case PARSER_ERR_UNSUPPORTED_REGEXP:
-    {
-      return "Regexp is not supported in the selected profile";
-    }
-    case PARSER_ERR_IDENTIFIER_TOO_LONG:
-    {
-      return "Identifier is too long";
-    }
-    case PARSER_ERR_STRING_TOO_LONG:
-    {
-      return "String is too long";
-    }
-    case PARSER_ERR_NUMBER_TOO_LONG:
-    {
-      return "Number is too long";
-    }
-    case PARSER_ERR_REGEXP_TOO_LONG:
-    {
-      return "Regexp is too long";
-    }
-    case PARSER_ERR_UNTERMINATED_MULTILINE_COMMENT:
-    {
-      return "Unterminated multiline comment";
-    }
-    case PARSER_ERR_UNTERMINATED_STRING:
-    {
-      return "Unterminated string literal";
-    }
-    case PARSER_ERR_UNTERMINATED_REGEXP:
-    {
-      return "Unterminated regexp literal";
-    }
-    case PARSER_ERR_NEWLINE_NOT_ALLOWED:
-    {
-      return "Newline is not allowed in strings or regexps";
-    }
-    case PARSER_ERR_OCTAL_NUMBER_NOT_ALLOWED:
-    {
-      return "Octal numbers are not allowed in strict mode";
-    }
-    case PARSER_ERR_OCTAL_ESCAPE_NOT_ALLOWED:
-    {
-      return "Octal escape sequences are not allowed in strict mode";
-    }
-#if JERRY_ESNEXT
-    case PARSER_ERR_TEMPLATE_STR_OCTAL_ESCAPE:
-    {
-      return "Octal escape sequences are not allowed in template strings";
-    }
-#endif /* JERRY_ESNEXT */
-    case PARSER_ERR_STRICT_IDENT_NOT_ALLOWED:
-    {
-      return "Identifier name is reserved in strict mode";
-    }
-    case PARSER_ERR_EVAL_NOT_ALLOWED:
-    {
-      return "Eval is not allowed to be used here in strict mode";
-    }
-    case PARSER_ERR_ARGUMENTS_NOT_ALLOWED:
-    {
-      return "Arguments is not allowed to be used here in strict mode";
-    }
-#if JERRY_ESNEXT
-    case PARSER_ERR_USE_STRICT_NOT_ALLOWED:
-    {
-      return "The 'use strict' directive is not allowed for functions with non-simple arguments";
-    }
-    case PARSER_ERR_YIELD_NOT_ALLOWED:
-    {
-      return "Yield expression is not allowed here";
-    }
-    case PARSER_ERR_AWAIT_NOT_ALLOWED:
-    {
-      return "Await expression is not allowed here";
-    }
-    case PARSER_ERR_FOR_IN_OF_DECLARATION:
-    {
-      return "for in-of loop variable declaration may not have an initializer";
-    }
-    case PARSER_ERR_FOR_AWAIT_NO_ASYNC:
-    {
-      return "for-await-of is only allowed inside async functions and generators";
-    }
-    case PARSER_ERR_FOR_AWAIT_NO_OF:
-    {
-      return "only 'of' form is allowed for for-await loops";
-    }
-    case PARSER_ERR_DUPLICATED_PROTO:
-    {
-      return "Duplicate __proto__ fields are not allowed in object literals";
-    }
-    case PARSER_ERR_INVALID_LHS_ASSIGNMENT:
-    {
-      return "Invalid left-hand side in assignment";
-    }
-    case PARSER_ERR_INVALID_LHS_POSTFIX_OP:
-    {
-      return "Invalid left-hand side expression in postfix operation";
-    }
-    case PARSER_ERR_INVALID_LHS_PREFIX_OP:
-    {
-      return "Invalid left-hand side expression in prefix operation";
-    }
-    case PARSER_ERR_INVALID_LHS_FOR_LOOP:
-    {
-      return "Invalid left-hand-side in for-loop";
-    }
-#endif /* JERRY_ESNEXT */
-    case PARSER_ERR_DELETE_IDENT_NOT_ALLOWED:
-    {
-      return "Deleting identifier is not allowed in strict mode";
-    }
-    case PARSER_ERR_EVAL_CANNOT_ASSIGNED:
-    {
-      return "Eval cannot be assigned to in strict mode";
-    }
-    case PARSER_ERR_ARGUMENTS_CANNOT_ASSIGNED:
-    {
-      return "Arguments cannot be assigned to in strict mode";
-    }
-    case PARSER_ERR_WITH_NOT_ALLOWED:
-    {
-      return "With statement not allowed in strict mode";
-    }
-    case PARSER_ERR_MULTIPLE_DEFAULTS_NOT_ALLOWED:
-    {
-      return "Multiple default cases are not allowed";
-    }
-    case PARSER_ERR_DEFAULT_NOT_IN_SWITCH:
-    {
-      return "Default statement must be in a switch block";
-    }
-    case PARSER_ERR_CASE_NOT_IN_SWITCH:
-    {
-      return "Case statement must be in a switch block";
-    }
-    case PARSER_ERR_LEFT_PAREN_EXPECTED:
-    {
-      return "Expected '(' token";
-    }
-    case PARSER_ERR_LEFT_BRACE_EXPECTED:
-    {
-      return "Expected '{' token";
-    }
-    case PARSER_ERR_RIGHT_PAREN_EXPECTED:
-    {
-      return "Expected ')' token";
-    }
-    case PARSER_ERR_RIGHT_SQUARE_EXPECTED:
-    {
-      return "Expected ']' token";
-    }
-    case PARSER_ERR_COLON_EXPECTED:
-    {
-      return "Expected ':' token";
-    }
-    case PARSER_ERR_COLON_FOR_CONDITIONAL_EXPECTED:
-    {
-      return "Expected ':' token for ?: conditional expression";
-    }
-    case PARSER_ERR_SEMICOLON_EXPECTED:
-    {
-      return "Expected ';' token";
-    }
-    case PARSER_ERR_IN_EXPECTED:
-    {
-      return "Expected 'in' token";
-    }
-    case PARSER_ERR_WHILE_EXPECTED:
-    {
-      return "While expected for do-while loop";
-    }
-    case PARSER_ERR_CATCH_FINALLY_EXPECTED:
-    {
-      return "Catch or finally block expected";
-    }
-    case PARSER_ERR_ARRAY_ITEM_SEPARATOR_EXPECTED:
-    {
-      return "Expected ',' or ']' after an array item";
-    }
-    case PARSER_ERR_OBJECT_ITEM_SEPARATOR_EXPECTED:
-    {
-      return "Expected ',' or '}' after a property definition";
-    }
-    case PARSER_ERR_IDENTIFIER_EXPECTED:
-    {
-      return "Identifier expected";
-    }
-    case PARSER_ERR_EXPRESSION_EXPECTED:
-    {
-      return "Expression expected";
-    }
-    case PARSER_ERR_PRIMARY_EXP_EXPECTED:
-    {
-      return "Primary expression expected";
-    }
-    case PARSER_ERR_LEFT_HAND_SIDE_EXP_EXPECTED:
-    {
-      return "Left-hand-side expression expected";
-    }
-    case PARSER_ERR_STATEMENT_EXPECTED:
-    {
-      return "Statement expected";
-    }
-    case PARSER_ERR_PROPERTY_IDENTIFIER_EXPECTED:
-    {
-      return "Property identifier expected";
-    }
-    case PARSER_ERR_ARGUMENT_LIST_EXPECTED:
-    {
-      return "Expected argument list";
-    }
-    case PARSER_ERR_NO_ARGUMENTS_EXPECTED:
-    {
-      return "Property getters must have no arguments";
-    }
-    case PARSER_ERR_ONE_ARGUMENT_EXPECTED:
-    {
-      return "Property setters must have one argument";
-    }
-    case PARSER_ERR_INVALID_EXPRESSION:
-    {
-      return "Invalid expression";
-    }
-    case PARSER_ERR_INVALID_SWITCH:
-    {
-      return "Invalid switch body";
-    }
-    case PARSER_ERR_INVALID_BREAK:
-    {
-      return "Break statement must be inside a loop or switch";
-    }
-    case PARSER_ERR_INVALID_BREAK_LABEL:
-    {
-      return "Labeled statement targeted by a break not found";
-    }
-    case PARSER_ERR_INVALID_CONTINUE:
-    {
-      return "Continue statement must be inside a loop";
-    }
-    case PARSER_ERR_INVALID_CONTINUE_LABEL:
-    {
-      return "Labeled statement targeted by a continue not found";
-    }
-    case PARSER_ERR_INVALID_RETURN:
-    {
-      return "Return statement must be inside a function body";
-    }
-    case PARSER_ERR_INVALID_RIGHT_SQUARE:
-    {
-      return "Unexpected '}' token";
-    }
-    case PARSER_ERR_DUPLICATED_LABEL:
-    {
-      return "Duplicated label";
-    }
-    case PARSER_ERR_OBJECT_PROPERTY_REDEFINED:
-    {
-      return "Property of object literal redefined";
-    }
-    case PARSER_ERR_NON_STRICT_ARG_DEFINITION:
-    {
-      return "Non-strict argument definition";
-    }
-#if JERRY_ESNEXT
-    case PARSER_ERR_VARIABLE_REDECLARED:
-    {
-      return ecma_error_local_variable_is_redeclared;
-    }
-    case PARSER_ERR_LEXICAL_SINGLE_STATEMENT:
-    {
-      return "Lexical declaration cannot appear in a single-statement context";
-    }
-    case PARSER_ERR_LABELLED_FUNC_NOT_IN_BLOCK:
-    {
-      return "Labelled functions are only allowed inside blocks";
-    }
-    case PARSER_ERR_LEXICAL_LET_BINDING:
-    {
-      return "Let binding cannot appear in let/const declarations";
-    }
-    case PARSER_ERR_MISSING_ASSIGN_AFTER_CONST:
-    {
-      return "Value assignment is expected after a const declaration";
-    }
-    case PARSER_ERR_MULTIPLE_CLASS_CONSTRUCTORS:
-    {
-      return "Multiple constructors are not allowed";
-    }
-    case PARSER_ERR_CLASS_CONSTRUCTOR_AS_ACCESSOR:
-    {
-      return "Class constructor may not be an accessor";
-    }
-    case PARSER_ERR_INVALID_CLASS_CONSTRUCTOR:
-    {
-      return "Class constructor may not be a generator or async function";
-    }
-    case PARSER_ERR_CLASS_STATIC_PROTOTYPE:
-    {
-      return "Classes may not have a static property called 'prototype'";
-    }
-    case PARSER_ERR_UNEXPECTED_SUPER_KEYWORD:
-    {
-      return "Super is not allowed to be used here";
-    }
-    case PARSER_ERR_TOO_MANY_CLASS_FIELDS:
-    {
-      return "Too many computed class fields are declared";
-    }
-    case PARSER_ERR_ARGUMENTS_IN_CLASS_FIELD:
-    {
-      return "In class field declarations 'arguments' is not allowed";
-    }
-    case PARSER_ERR_RIGHT_BRACE_EXPECTED:
-    {
-      return "Expected '}' token";
-    }
-    case PARSER_ERR_OF_EXPECTED:
-    {
-      return "Expected 'of' token";
-    }
-    case PARSER_ERR_ASSIGNMENT_EXPECTED:
-    {
-      return "Unexpected arrow function or yield expression (parentheses around the expression may help)";
-    }
-    case PARSER_ERR_DUPLICATED_ARGUMENT_NAMES:
-    {
-      return "Duplicated function argument names are not allowed here";
-    }
-    case PARSER_ERR_INVALID_DESTRUCTURING_PATTERN:
-    {
-      return "Invalid destructuring assignment target";
-    }
-    case PARSER_ERR_ILLEGAL_PROPERTY_IN_DECLARATION:
-    {
-      return "Illegal property in declaration context";
-    }
-    case PARSER_ERR_INVALID_EXPONENTIATION:
-    {
-      return "Left operand of ** operator cannot be unary expression";
-    }
-    case PARSER_ERR_INVALID_NULLISH_COALESCING:
-    {
-      return "Cannot chain nullish with logical AND or OR";
-    }
-    case PARSER_ERR_FORMAL_PARAM_AFTER_REST_PARAMETER:
-    {
-      return "Rest parameter must be the last formal parameter";
-    }
-    case PARSER_ERR_SETTER_REST_PARAMETER:
-    {
-      return "Setter function argument must not be a rest parameter";
-    }
-    case PARSER_ERR_REST_PARAMETER_DEFAULT_INITIALIZER:
-    {
-      return "Rest parameter may not have a default initializer";
-    }
-    case PARSER_ERR_NEW_TARGET_EXPECTED:
-    {
-      return "Expected new.target expression";
-    }
-    case PARSER_ERR_NEW_TARGET_NOT_ALLOWED:
-    {
-      return "new.target expression is not allowed here";
-    }
-#endif /* JERRY_ESNEXT */
-#if JERRY_MODULE_SYSTEM
-    case PARSER_ERR_FILE_NOT_FOUND:
-    {
-      return "Requested module not found";
-    }
-    case PARSER_ERR_FROM_EXPECTED:
-    {
-      return "Expected 'from' token";
-    }
-    case PARSER_ERR_FROM_COMMA_EXPECTED:
-    {
-      return "Expected 'from' or ',' token";
-    }
-    case PARSER_ERR_AS_EXPECTED:
-    {
-      return "Expected 'as' token";
-    }
-    case PARSER_ERR_STRING_EXPECTED:
-    {
-      return "Expected a string literal";
-    }
-    case PARSER_ERR_MODULE_UNEXPECTED:
-    {
-      return "Unexpected import or export statement";
-    }
-    case PARSER_ERR_LEFT_BRACE_MULTIPLY_EXPECTED:
-    {
-      return "Expected '{' or '*' token";
-    }
-    case PARSER_ERR_LEFT_BRACE_MULTIPLY_LITERAL_EXPECTED:
-    {
-      return "Expected '{' or '*' or literal token";
-    }
-    case PARSER_ERR_RIGHT_BRACE_COMMA_EXPECTED:
-    {
-      return "Expected '}' or ',' token";
-    }
-    case PARSER_ERR_DUPLICATED_EXPORT_IDENTIFIER:
-    {
-      return "Duplicate exported identifier";
-    }
-    case PARSER_ERR_DUPLICATED_IMPORT_BINDING:
-    {
-      return "Duplicated imported binding name";
-    }
-    case PARSER_ERR_EXPORT_NOT_DEFINED:
-    {
-      return "Export not defined in module";
-    }
-    case PARSER_ERR_IMPORT_AFTER_NEW:
-    {
-      return "Module import call is not allowed after new";
-    }
-    case PARSER_ERR_META_EXPECTED:
-    {
-      return "Expected 'meta' keyword";
-    }
-    case PARSER_ERR_IMPORT_META_REQUIRE_MODULE:
-    {
-      return "Cannot use 'import.meta' outside a module";
-    }
-#endif /* JERRY_MODULE_SYSTEM */
-    default:
-    {
-      JERRY_ASSERT (error == PARSER_ERR_NO_ERROR);
-      return "No error";
-    }
-  }
-} /* parser_error_to_string */
-#endif /* JERRY_ERROR_MESSAGES */
 
 /**
  * @}

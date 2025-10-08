@@ -43,7 +43,7 @@ assert (d.getDate() == 9);
 assert (d.getUTCDate() == 9);
 assert (d.getDay() == 4);
 assert (d.getUTCDay() == 4);
-assert (d.getHours() == Math.floor(12 - 1.5 + d.getTimezoneOffset() / 60));
+assert (d.getHours() == Math.floor(12 - 1.5 - d.getTimezoneOffset() / 60));
 assert (d.getUTCHours() == Math.floor(12 - 1.5));
 assert (d.getMinutes() == 43);
 assert (d.getUTCMinutes() == 43);
@@ -97,6 +97,7 @@ assert (isNaN (d.getTimezoneOffset()));
 /* 5. test case */
 assert (new Date(2013, -1).getMonth() === 11);
 assert (new Date(-2, -2).getFullYear() === -3);
+assert (new Date(30888, 2).getFullYear() === 30888);
 assert (new Date(-1, -1).getFullYear() === -2);
 assert (new Date(-1, -1, -1).getMonth() === 10);
 assert (new Date(-1, -1, -1, -1).getDate() === 28);
@@ -104,3 +105,25 @@ assert (new Date(-1, -1, -1, -1, -1).getHours() === 22);
 assert (new Date(-1, -1, -1, -1, -1, -1).getMinutes() === 58);
 assert (new Date(-1, -1, -1, -1, -1, -1, -1).getSeconds() === 58);
 assert (new Date(-1, -1, -1, -1, -1, -1, -1, -1).getMilliseconds() === 999);
+
+/* 6. test case */
+assert (isNaN(new Date(20000000, 0).getFullYear()));
+assert (new Date(0, 0).getFullYear() === 1900);
+assert (new Date(1.2, 0).getFullYear() === 1901);
+
+/* 7. test case */
+/* A Number can exactly represent all integers from -9,007,199,254,740,992 to 9,007,199,254,740,992 (21.1.2.8 and 21.1.2.6).
+   A time value supports a slightly smaller range of -8,640,000,000,000,000 to 8,640,000,000,000,000 milliseconds. */
+assert((new Date(8640000000000000).getFullYear()) == 275760);
+assert(isNaN(new Date(8640000000000001).getFullYear()));
+assert((new Date(-8640000000000000).getFullYear()) == -271821);
+assert(isNaN(new Date(-8640000000000001).getFullYear()));
+
+/* 8. test case */
+assert((new Date(-271821, 3, 21).getFullYear()) == -271821);
+assert(isNaN(new Date(1970, 0, -100000000).getFullYear())); 
+assert(new Date(1970, 0, -100000000 + 1).getFullYear() == -271821);
+assert(isNaN(new Date(1970, 0, 100000000 + 2).getFullYear())); 
+assert(new Date(1970, 0, 100000000).getFullYear() == 275760);
+assert(isNaN(new Date(4294967295, -51536298411).getFullYear()));
+assert((new Date(4294967295, -51536300000).getFullYear()) == 275628);

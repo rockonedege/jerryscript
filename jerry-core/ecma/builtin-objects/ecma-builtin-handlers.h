@@ -16,22 +16,21 @@
 #ifndef ECMA_BUILTIN_HANDLERS_H
 #define ECMA_BUILTIN_HANDLERS_H
 
-#include "ecma-globals.h"
-
-#if JERRY_ESNEXT
-
-#include "ecma-helpers.h"
 #include "ecma-builtins.h"
+#include "ecma-globals.h"
+#include "ecma-helpers.h"
 #include "ecma-promise-object.h"
 #include "ecma-proxy-object.h"
 
 typedef enum
 {
+  /** @cond doxygen_suppress */
   ECMA_NATIVE_HANDLER_START = 0,
 #define ECMA_NATIVE_HANDLER(id, handler, length) id,
 #include "ecma-builtin-handlers.inc.h"
 #undef ECMA_NATIVE_HANDLER
   ECMA_NATIVE_HANDLER__COUNT
+  /** @endcond */
 } ecma_native_handler_id_t;
 
 typedef enum
@@ -44,13 +43,9 @@ typedef enum
 /**
  * Shift for Promise helper handler function.
  */
-#define ECMA_NATIVE_HANDLER_FLAGS_PROMISE_HELPER_SHIFT 2
+#define ECMA_NATIVE_HANDLER_COMMON_FLAGS_SHIFT 2
 
-ecma_builtin_handler_t
-ecma_builtin_handler_get (ecma_native_handler_id_t id);
-uint8_t
-ecma_builtin_handler_get_length (ecma_native_handler_id_t id);
-
-#endif /* JERRY_ESNEXT */
+ecma_builtin_handler_t ecma_builtin_handler_get (ecma_native_handler_id_t id);
+uint8_t ecma_builtin_handler_get_length (ecma_native_handler_id_t id);
 
 #endif /* !ECMA_BUILTIN_HANDLERS_H */

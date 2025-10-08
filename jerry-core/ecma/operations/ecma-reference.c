@@ -13,6 +13,8 @@
  * limitations under the License.
  */
 
+#include "ecma-reference.h"
+
 #include "ecma-exceptions.h"
 #include "ecma-function-object.h"
 #include "ecma-gc.h"
@@ -22,7 +24,7 @@
 #include "ecma-lex-env.h"
 #include "ecma-objects.h"
 #include "ecma-proxy-object.h"
-#include "ecma-reference.h"
+
 #include "jrt.h"
 
 /** \addtogroup ecma ECMA
@@ -36,7 +38,7 @@
  * Resolve syntactic reference.
  *
  * @return ECMA_OBJECT_POINTER_ERROR - if the operation fails
- *         pointer to lexical environment - if the reference's base is resolved sucessfully,
+ *         pointer to lexical environment - if the reference's base is resolved successfully,
  *         NULL - otherwise.
  */
 ecma_object_t *
@@ -69,8 +71,6 @@ ecma_op_resolve_reference_base (ecma_object_t *lex_env_p, /**< starting lexical 
     lex_env_p = ECMA_GET_NON_NULL_POINTER (ecma_object_t, lex_env_p->u2.outer_reference_cp);
   }
 } /* ecma_op_resolve_reference_base */
-
-#if JERRY_ESNEXT
 
 /**
  * Check if the passed lexical environment is a global lexical environment
@@ -111,7 +111,7 @@ ecma_op_resolve_super_base (ecma_object_t *lex_env_p) /**< starting lexical envi
     JERRY_ASSERT (lex_env_p != NULL);
 
     if (ecma_get_lex_env_type (lex_env_p) == ECMA_LEXICAL_ENVIRONMENT_CLASS
-        && (lex_env_p->type_flags_refs & ECMA_OBJECT_FLAG_LEXICAL_ENV_HAS_DATA) == 0)
+        && !ECMA_LEX_ENV_CLASS_IS_MODULE (lex_env_p))
     {
       ecma_object_t *home_p = ECMA_GET_NON_NULL_POINTER (ecma_object_t, lex_env_p->u1.home_object_cp);
 
@@ -190,8 +190,6 @@ ecma_op_is_prop_unscopable (ecma_object_t *binding_obj_p, /**< binding object */
   return ECMA_VALUE_FALSE;
 } /* ecma_op_is_prop_unscopable */
 
-#endif /* JERRY_ESNEXT */
-
 /**
  * Helper method for HasBindig operation
  *
@@ -242,9 +240,7 @@ ecma_op_object_bound_environment_resolve_reference_value (ecma_object_t *lex_env
       return found_binding;
     }
 
-#if JERRY_ESNEXT
     if (JERRY_LIKELY (ecma_op_is_global_environment (lex_env_p)))
-#endif /* JERRY_ESNEXT */
     {
       return found_binding;
     }
@@ -252,7 +248,6 @@ ecma_op_object_bound_environment_resolve_reference_value (ecma_object_t *lex_env
   }
 #endif /* JERRY_BUILTIN_PROXY */
 
-#if JERRY_ESNEXT
   ecma_value_t blocked = ecma_op_is_prop_unscopable (binding_obj_p, name_p);
 
   if (ecma_is_value_false (blocked))
@@ -274,7 +269,6 @@ ecma_op_object_bound_environment_resolve_reference_value (ecma_object_t *lex_env
 #endif /* JERRY_BUILTIN_PROXY */
 
   return ECMA_IS_VALUE_ERROR (blocked) ? blocked : ECMA_VALUE_NOT_FOUND;
-#endif /* JERRY_ESNEXT */
 } /* ecma_op_object_bound_environment_resolve_reference_value */
 
 /**
@@ -303,20 +297,17 @@ ecma_op_resolve_reference_value (ecma_object_t *lex_env_p, /**< starting lexical
 
         ecma_property_value_t *property_value_p = ECMA_PROPERTY_VALUE_PTR (property_p);
 
-#if JERRY_ESNEXT
         if (JERRY_UNLIKELY (property_value_p->value == ECMA_VALUE_UNINITIALIZED))
         {
-          return ecma_raise_reference_error (ECMA_ERR_MSG (ecma_error_let_const_not_initialized));
+          return ecma_raise_reference_error (ECMA_ERR_LET_CONST_NOT_INITIALIZED);
         }
-#endif /* JERRY_ESNEXT */
 
         return ecma_fast_copy_value (property_value_p->value);
       }
-#if JERRY_ESNEXT
       case ECMA_LEXICAL_ENVIRONMENT_CLASS:
       {
 #if JERRY_MODULE_SYSTEM
-        if (lex_env_p->type_flags_refs & ECMA_OBJECT_FLAG_LEXICAL_ENV_HAS_DATA)
+        if (ECMA_LEX_ENV_CLASS_IS_MODULE (lex_env_p))
         {
           ecma_property_t *property_p = ecma_find_named_property (lex_env_p, name_p);
 
@@ -334,7 +325,7 @@ ecma_op_resolve_reference_value (ecma_object_t *lex_env_p, /**< starting lexical
 
           if (JERRY_UNLIKELY (property_value_p->value == ECMA_VALUE_UNINITIALIZED))
           {
-            return ecma_raise_reference_error (ECMA_ERR_MSG (ecma_error_let_const_not_initialized));
+            return ecma_raise_reference_error (ECMA_ERR_LET_CONST_NOT_INITIALIZED);
           }
 
           return ecma_fast_copy_value (property_value_p->value);
@@ -342,17 +333,11 @@ ecma_op_resolve_reference_value (ecma_object_t *lex_env_p, /**< starting lexical
 #endif /* JERRY_MODULE_SYSTEM */
         break;
       }
-#endif /* JERRY_ESNEXT */
       default:
       {
         JERRY_ASSERT (ecma_get_lex_env_type (lex_env_p) == ECMA_LEXICAL_ENVIRONMENT_THIS_OBJECT_BOUND);
-#if JERRY_ESNEXT
-        bool lcache_lookup_allowed = ecma_op_is_global_environment (lex_env_p);
-#else /* !JERRY_ESNEXT*/
-        bool lcache_lookup_allowed = true;
-#endif /* JERRY_ESNEXT */
 
-        if (lcache_lookup_allowed)
+        if (ecma_op_is_global_environment (lex_env_p))
         {
 #if JERRY_LCACHE
           ecma_object_t *binding_obj_p = ecma_get_lex_env_binding_object (lex_env_p);
@@ -369,17 +354,8 @@ ecma_op_resolve_reference_value (ecma_object_t *lex_env_p, /**< starting lexical
               return ecma_fast_copy_value (prop_value_p->value);
             }
 
-            ecma_getter_setter_pointers_t *get_set_pair_p = ecma_get_named_accessor_property (prop_value_p);
-
-            if (get_set_pair_p->getter_cp == JMEM_CP_NULL)
-            {
-              return ECMA_VALUE_UNDEFINED;
-            }
-
-            ecma_object_t *getter_p = ECMA_GET_NON_NULL_POINTER (ecma_object_t, get_set_pair_p->getter_cp);
-
-            ecma_value_t base_value = ecma_make_object_value (binding_obj_p);
-            return ecma_op_function_call (getter_p, base_value, NULL, 0);
+            return ecma_op_invoke_getter (ecma_get_named_accessor_property (prop_value_p),
+                                          ecma_make_object_value (binding_obj_p));
           }
 #endif /* JERRY_LCACHE */
         }
@@ -405,11 +381,10 @@ ecma_op_resolve_reference_value (ecma_object_t *lex_env_p, /**< starting lexical
 
 #if JERRY_ERROR_MESSAGES
   ecma_value_t name_val = ecma_make_string_value (name_p);
-  ecma_value_t error_value = ecma_raise_standard_error_with_format (JERRY_ERROR_REFERENCE,
-                                                                    "% is not defined",
-                                                                    name_val);
+  ecma_value_t error_value =
+    ecma_raise_standard_error_with_format (JERRY_ERROR_REFERENCE, "% is not defined", name_val);
 #else /* JERRY_ERROR_MESSAGES */
-  ecma_value_t error_value = ecma_raise_reference_error (NULL);
+  ecma_value_t error_value = ecma_raise_reference_error (ECMA_ERR_EMPTY);
 #endif /* !JERRY_ERROR_MESSAGES */
   return error_value;
 } /* ecma_op_resolve_reference_value */

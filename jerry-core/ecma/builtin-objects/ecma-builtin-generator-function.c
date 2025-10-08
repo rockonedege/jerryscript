@@ -15,14 +15,12 @@
 
 #include "ecma-globals.h"
 
-#if JERRY_ESNEXT
-
 #define ECMA_BUILTINS_INTERNAL
 #include "ecma-builtins-internal.h"
 #include "ecma-function-object.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-generator-function.inc.h"
-#define BUILTIN_UNDERSCORED_ID generator_function
+#define BUILTIN_UNDERSCORED_ID  generator_function
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -31,7 +29,7 @@
  * \addtogroup ecmabuiltins
  * @{
  *
- * \addtogroup generator ECMA GeneratorFunction object built-in
+ * \addtogroup generatorfunction ECMA GeneratorFunction object built-in
  * @{
  */
 
@@ -53,7 +51,7 @@ ecma_builtin_generator_function_dispatch_call (const ecma_value_t *arguments_lis
 /**
  * Handle calling [[Construct]] of built-in GeneratorFunction object
  *
-* @return constructed generator function object - if success
+ * @return constructed generator function object - if success
  *        raised error otherwise
  */
 ecma_value_t
@@ -68,5 +66,3 @@ ecma_builtin_generator_function_dispatch_construct (const ecma_value_t *argument
  * @}
  * @}
  */
-
-#endif /* JERRY_ESNEXT */

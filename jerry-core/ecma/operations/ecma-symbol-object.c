@@ -13,18 +13,18 @@
  * limitations under the License.
  */
 
+#include "ecma-symbol-object.h"
+
 #include "ecma-alloc.h"
 #include "ecma-builtins.h"
 #include "ecma-exceptions.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
-#include "ecma-objects.h"
 #include "ecma-objects-general.h"
-#include "ecma-symbol-object.h"
-#include "lit-char-helpers.h"
+#include "ecma-objects.h"
 
-#if JERRY_ESNEXT
+#include "lit-char-helpers.h"
 
 /** \addtogroup ecma ECMA
  * @{
@@ -85,9 +85,8 @@ ecma_op_create_symbol_object (const ecma_value_t value) /**< symbol value */
   JERRY_ASSERT (ecma_is_value_symbol (value));
 
   ecma_object_t *prototype_obj_p = ecma_builtin_get (ECMA_BUILTIN_ID_SYMBOL_PROTOTYPE);
-  ecma_object_t *object_p = ecma_create_object (prototype_obj_p,
-                                                sizeof (ecma_extended_object_t),
-                                                ECMA_OBJECT_TYPE_CLASS);
+  ecma_object_t *object_p =
+    ecma_create_object (prototype_obj_p, sizeof (ecma_extended_object_t), ECMA_OBJECT_TYPE_CLASS);
 
   ecma_extended_object_t *ext_object_p = (ecma_extended_object_t *) object_p;
   ext_object_p->u.cls.type = ECMA_OBJECT_CLASS_SYMBOL;
@@ -169,9 +168,8 @@ ecma_symbol_this_value (ecma_value_t this_arg) /**< this argument value */
   }
 
   /* 3. */
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' must be a Symbol"));
+  return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_SYMBOL);
 } /* ecma_symbol_this_value */
-#endif /* JERRY_ESNEXT */
 
 /**
  * @}

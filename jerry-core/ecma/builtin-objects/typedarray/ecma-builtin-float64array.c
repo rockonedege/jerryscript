@@ -19,6 +19,7 @@
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-typedarray-object.h"
+
 #include "jrt.h"
 
 #if JERRY_BUILTIN_TYPEDARRAY
@@ -28,9 +29,8 @@
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-float64array.inc.h"
-#define BUILTIN_UNDERSCORED_ID float64array
+#define BUILTIN_UNDERSCORED_ID  float64array
 #include "ecma-builtin-internal-routines-template.inc.h"
-
 #include "ecma-builtin-typedarray-helpers.h"
 
 /** \addtogroup ecma ECMA
@@ -54,7 +54,7 @@ ecma_builtin_float64array_dispatch_call (const ecma_value_t *arguments_list_p, /
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Constructor Float64Array requires 'new'"));
+  return ecma_raise_type_error (ECMA_ERR_CONSTRUCTOR_FLOAT64_ARRAY_REQUIRES_NEW);
 } /* ecma_builtin_float64array_dispatch_call */
 
 /**
@@ -66,15 +66,14 @@ ecma_value_t
 ecma_builtin_float64array_dispatch_construct (const ecma_value_t *arguments_list_p, /**< arguments list */
                                               uint32_t arguments_list_len) /**< number of arguments */
 {
-  return ecma_typedarray_helper_dispatch_construct (arguments_list_p, arguments_list_len,
-                                                    ECMA_FLOAT64_ARRAY);
+  return ecma_typedarray_helper_dispatch_construct (arguments_list_p, arguments_list_len, ECMA_FLOAT64_ARRAY);
 } /* ecma_builtin_float64array_dispatch_construct */
 
 /**
-  * @}
-  * @}
-  * @}
-  */
+ * @}
+ * @}
+ * @}
+ */
 
 #endif /* JERRY_NUMBER_TYPE_FLOAT64 */
 #endif /* JERRY_BUILTIN_TYPEDARRAY */

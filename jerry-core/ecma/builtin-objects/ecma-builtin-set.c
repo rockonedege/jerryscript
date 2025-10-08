@@ -14,8 +14,8 @@
  */
 
 #include "ecma-builtins.h"
-#include "ecma-exceptions.h"
 #include "ecma-container-object.h"
+#include "ecma-exceptions.h"
 
 #if JERRY_BUILTIN_CONTAINER
 
@@ -23,7 +23,7 @@
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-set.inc.h"
-#define BUILTIN_UNDERSCORED_ID set
+#define BUILTIN_UNDERSCORED_ID  set
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -47,7 +47,7 @@ ecma_builtin_set_dispatch_call (const ecma_value_t *arguments_list_p, /**< argum
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Constructor Set requires 'new'"));
+  return ecma_raise_type_error (ECMA_ERR_CONSTRUCTOR_SET_REQUIRES_NEW);
 } /* ecma_builtin_set_dispatch_call */
 
 /**

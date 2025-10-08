@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import argparse
 import multiprocessing
 import os
@@ -32,7 +30,7 @@ def default_toolchain():
     (sysname, _, _, _, machine) = os.uname()
     toolchain = os.path.join(settings.PROJECT_DIR,
                              'cmake',
-                             'toolchain_%s_%s.cmake' % (sysname.lower(), machine.lower()))
+                             f'toolchain_{sysname.lower()}_{machine.lower()}.cmake')
     return toolchain if os.path.isfile(toolchain) else None
 
 def get_arguments():
@@ -55,6 +53,8 @@ def get_arguments():
         """)
 
     buildgrp = parser.add_argument_group('general build options')
+    buildgrp.add_argument('--arch', metavar='OPT', default='',
+                          help='Specify architecture if supported by cmake generator. (default: %(default)s)')
     buildgrp.add_argument('--builddir', metavar='DIR', default=os.path.join(settings.PROJECT_DIR, 'build'),
                           help='specify build directory (default: %(default)s)')
     buildgrp.add_argument('--clean', action='store_true', default=False,
@@ -80,6 +80,8 @@ def get_arguments():
                           help='enable amalgamated build (%(choices)s)')
     buildgrp.add_argument('--lto', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                           help='enable link-time optimizations (%(choices)s)')
+    buildgrp.add_argument('--static-crt', metavar='X', choices=['ON', 'OFF'], type=str.upper,
+                          help='enable msvc static CRT (%(choices)s)')
     buildgrp.add_argument('--shared-libs', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                           help='enable building of shared libraries (%(choices)s)')
     buildgrp.add_argument('--strip', metavar='X', choices=['ON', 'OFF'], type=str.upper,
@@ -104,7 +106,7 @@ def get_arguments():
                          help='build jerry-ext (%(choices)s)')
     compgrp.add_argument('--jerry-math', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                          help='build and use jerry-math (%(choices)s)')
-    compgrp.add_argument('--jerry-port-default', metavar='X', choices=['ON', 'OFF'], type=str.upper,
+    compgrp.add_argument('--jerry-port', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                          help='build default jerry port implementation (%(choices)s)')
     compgrp.add_argument('--unittests', metavar='X', choices=['ON', 'OFF'], type=str.upper,
                          help=devhelp('build unittests (%(choices)s)'))
@@ -179,7 +181,7 @@ def generate_build_options(arguments):
 
     def build_options_append(cmakeopt, cliarg):
         if cliarg:
-            build_options.append('-D%s=%s' % (cmakeopt, cliarg))
+            build_options.append(f'-D{cmakeopt}={cliarg}')
 
     # general build options
     build_options_append('CMAKE_BUILD_TYPE', arguments.build_type)
@@ -189,6 +191,7 @@ def generate_build_options(arguments):
     build_options_append('ENABLE_AMALGAM', arguments.amalgam)
     build_options_append('ENABLE_LTO', arguments.lto)
     build_options_append('BUILD_SHARED_LIBS', arguments.shared_libs)
+    build_options_append('ENABLE_STATIC_CRT', arguments.static_crt)
     build_options_append('ENABLE_STRIP', arguments.strip)
     build_options_append('CMAKE_TOOLCHAIN_FILE', arguments.toolchain)
     build_options_append('CMAKE_VERBOSE_MAKEFILE', arguments.verbose)
@@ -201,7 +204,7 @@ def generate_build_options(arguments):
     build_options_append('JERRY_LIBFUZZER', arguments.libfuzzer)
     build_options_append('JERRY_EXT', arguments.jerry_ext)
     build_options_append('JERRY_MATH', arguments.jerry_math)
-    build_options_append('JERRY_PORT_DEFAULT', arguments.jerry_port_default)
+    build_options_append('JERRY_PORT', arguments.jerry_port)
     build_options_append('UNITTESTS', arguments.unittests)
 
     # jerry-core options
@@ -227,11 +230,11 @@ def generate_build_options(arguments):
     build_options_append('JERRY_SNAPSHOT_SAVE', arguments.snapshot_save)
     build_options_append('JERRY_SYSTEM_ALLOCATOR', arguments.system_allocator)
     build_options_append('JERRY_VALGRIND', arguments.valgrind)
-    build_options_append('JERRY_VM_EXEC_STOP', arguments.vm_exec_stop)
+    build_options_append('JERRY_VM_HALT', arguments.vm_exec_stop)
     build_options_append('JERRY_VM_THROW', arguments.vm_throw)
 
     if arguments.gc_mark_limit is not None:
-        build_options.append('-D%s=%s' % ('JERRY_GC_MARK_LIMIT', arguments.gc_mark_limit))
+        build_options.append(f'-DJERRY_GC_MARK_LIMIT={arguments.gc_mark_limit}')
 
     # jerry-main options
     build_options_append('ENABLE_LINK_MAP', arguments.link_map)
@@ -260,8 +263,11 @@ def configure_jerry(arguments):
 
     cmake_cmd = ['cmake', '-B' + arguments.builddir, '-H' + settings.PROJECT_DIR]
 
+    if arguments.arch:
+        cmake_cmd.append('-A' + arguments.arch)
+
     if arguments.install:
-        cmake_cmd.append('-DCMAKE_INSTALL_PREFIX=%s' % arguments.install)
+        cmake_cmd.append(f'-DCMAKE_INSTALL_PREFIX={arguments.install}')
 
     cmake_cmd.extend(build_options)
 
@@ -271,11 +277,10 @@ def make_jerry(arguments):
     make_cmd = ['cmake', '--build', arguments.builddir, '--config', arguments.build_type]
     env = dict(os.environ)
     env['CMAKE_BUILD_PARALLEL_LEVEL'] = str(arguments.jobs)
-    env['MAKEFLAGS'] = '-j%d' % (arguments.jobs) # Workaround for CMake < 3.12
-    proc = subprocess.Popen(make_cmd, env=env)
-    proc.wait()
-
-    return proc.returncode
+    env['MAKEFLAGS'] = f'-j{arguments.jobs}'  # Workaround for CMake < 3.12
+    with subprocess.Popen(make_cmd, env=env) as proc:
+        proc.wait()
+        return proc.returncode
 
 def install_jerry(arguments):
     install_target = 'INSTALL' if os.path.exists(os.path.join(arguments.builddir, 'Jerry.sln')) else 'install'
@@ -285,7 +290,7 @@ def install_jerry(arguments):
 def print_result(ret):
     print('=' * 30)
     if ret:
-        print('Build failed with exit code: %s' % (ret))
+        print(f'Build failed with exit code: {ret}')
     else:
         print('Build succeeded!')
     print('=' * 30)

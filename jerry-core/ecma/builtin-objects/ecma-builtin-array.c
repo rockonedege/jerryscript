@@ -14,8 +14,9 @@
  */
 
 #include "ecma-alloc.h"
-#include "ecma-builtins.h"
+#include "ecma-array-object.h"
 #include "ecma-builtin-helpers.h"
+#include "ecma-builtins.h"
 #include "ecma-conversion.h"
 #include "ecma-exceptions.h"
 #include "ecma-function-object.h"
@@ -24,7 +25,7 @@
 #include "ecma-helpers.h"
 #include "ecma-iterator-object.h"
 #include "ecma-objects.h"
-#include "ecma-array-object.h"
+
 #include "jcontext.h"
 #include "jrt.h"
 
@@ -45,15 +46,13 @@ enum
 {
   ECMA_ARRAY_ROUTINE_START = 0,
   ECMA_ARRAY_ROUTINE_IS_ARRAY,
-#if JERRY_ESNEXT
   ECMA_ARRAY_ROUTINE_FROM,
   ECMA_ARRAY_ROUTINE_OF,
   ECMA_ARRAY_ROUTINE_SPECIES_GET
-#endif /* JERRY_ESNEXT */
 };
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-array.inc.h"
-#define BUILTIN_UNDERSCORED_ID array
+#define BUILTIN_UNDERSCORED_ID  array
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -66,7 +65,6 @@ enum
  * @{
  */
 
-#if JERRY_ESNEXT
 /**
  * The Array object's 'from' routine
  *
@@ -96,7 +94,7 @@ ecma_builtin_array_object_from (ecma_value_t this_arg, /**< 'this' argument */
     /* 3.a */
     if (!ecma_op_is_callable (mapfn))
     {
-      return ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_callback_is_not_callable));
+      return ecma_raise_type_error (ECMA_ERR_CALLBACK_IS_NOT_CALLABLE);
     }
 
     /* 3.b */
@@ -135,7 +133,7 @@ ecma_builtin_array_object_from (ecma_value_t this_arg, /**< 'this' argument */
       if (ecma_is_value_undefined (array) || ecma_is_value_null (array))
       {
         ecma_free_value (using_iterator);
-        return ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_cannot_convert_to_object));
+        return ecma_raise_type_error (ECMA_ERR_CANNOT_CONVERT_TO_OBJECT);
       }
 
       /* 6.c */
@@ -185,10 +183,8 @@ ecma_builtin_array_object_from (ecma_value_t this_arg, /**< 'this' argument */
       {
         /* 6.g.iv.1 */
         ecma_value_t len_value = ecma_make_uint32_value (k);
-        ecma_value_t set_status = ecma_op_object_put (array_obj_p,
-                                                      ecma_get_magic_string (LIT_MAGIC_STRING_LENGTH),
-                                                      len_value,
-                                                      true);
+        ecma_value_t set_status =
+          ecma_op_object_put (array_obj_p, ecma_get_magic_string (LIT_MAGIC_STRING_LENGTH), len_value, true);
         ecma_free_value (len_value);
 
         /* 6.g.iv.2 */
@@ -298,7 +294,7 @@ iterator_cleanup:
 
     if (ecma_is_value_undefined (array) || ecma_is_value_null (array))
     {
-      ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_cannot_convert_to_object));
+      ecma_raise_type_error (ECMA_ERR_CANNOT_CONVERT_TO_OBJECT);
       goto cleanup;
     }
 
@@ -376,10 +372,8 @@ iterator_cleanup:
 
   /* 17. */
   len_value = ecma_make_length_value (k);
-  ecma_value_t set_status = ecma_op_object_put (array_obj_p,
-                                                ecma_get_magic_string (LIT_MAGIC_STRING_LENGTH),
-                                                len_value,
-                                                true);
+  ecma_value_t set_status =
+    ecma_op_object_put (array_obj_p, ecma_get_magic_string (LIT_MAGIC_STRING_LENGTH), len_value, true);
   ecma_free_value (len_value);
 
   /* 18. */
@@ -420,10 +414,8 @@ ecma_builtin_array_object_of (ecma_value_t this_arg, /**< 'this' argument */
 
   ecma_value_t len = ecma_make_uint32_value (arguments_list_len);
 
-  ecma_value_t ret_val = ecma_op_function_construct (ecma_get_object_from_value (this_arg),
-                                                     ecma_get_object_from_value (this_arg),
-                                                     &len,
-                                                     1);
+  ecma_value_t ret_val =
+    ecma_op_function_construct (ecma_get_object_from_value (this_arg), ecma_get_object_from_value (this_arg), &len, 1);
 
   if (ECMA_IS_VALUE_ERROR (ret_val))
   {
@@ -437,10 +429,8 @@ ecma_builtin_array_object_of (ecma_value_t this_arg, /**< 'this' argument */
 
   while (k < arguments_list_len)
   {
-    ecma_value_t define_status = ecma_builtin_helper_def_prop_by_index (obj_p,
-                                                                        k,
-                                                                        arguments_list_p[k],
-                                                                        prop_status_flags);
+    ecma_value_t define_status =
+      ecma_builtin_helper_def_prop_by_index (obj_p, k, arguments_list_p[k], prop_status_flags);
 
     if (ECMA_IS_VALUE_ERROR (define_status))
     {
@@ -452,10 +442,7 @@ ecma_builtin_array_object_of (ecma_value_t this_arg, /**< 'this' argument */
     k++;
   }
 
-  ret_val = ecma_op_object_put (obj_p,
-                                ecma_get_magic_string (LIT_MAGIC_STRING_LENGTH),
-                                len,
-                                true);
+  ret_val = ecma_op_object_put (obj_p, ecma_get_magic_string (LIT_MAGIC_STRING_LENGTH), len, true);
 
   ecma_free_value (len);
 
@@ -467,8 +454,6 @@ ecma_builtin_array_object_of (ecma_value_t this_arg, /**< 'this' argument */
 
   return ecma_make_object_value (obj_p);
 } /* ecma_builtin_array_object_of */
-
-#endif /* JERRY_ESNEXT */
 
 /**
  * Handle calling [[Call]] of built-in Array object
@@ -482,8 +467,7 @@ ecma_builtin_array_dispatch_call (const ecma_value_t *arguments_list_p, /**< arg
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  if (arguments_list_len != 1
-      || !ecma_is_value_number (arguments_list_p[0]))
+  if (arguments_list_len != 1 || !ecma_is_value_number (arguments_list_p[0]))
   {
     return ecma_op_new_array_object_from_buffer (arguments_list_p, arguments_list_len);
   }
@@ -493,7 +477,7 @@ ecma_builtin_array_dispatch_call (const ecma_value_t *arguments_list_p, /**< arg
 
   if (num != ((ecma_number_t) num_uint32))
   {
-    return ecma_raise_range_error (ECMA_ERR_MSG (ecma_error_invalid_array_length));
+    return ecma_raise_range_error (ECMA_ERR_INVALID_ARRAY_LENGTH);
   }
 
   return ecma_make_object_value (ecma_op_new_array_object (num_uint32));
@@ -511,11 +495,8 @@ ecma_builtin_array_dispatch_construct (const ecma_value_t *arguments_list_p, /**
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-#if !JERRY_ESNEXT
-  return ecma_builtin_array_dispatch_call (arguments_list_p, arguments_list_len);
-#else /* JERRY_ESNEXT */
-  ecma_object_t *proto_p = ecma_op_get_prototype_from_constructor (JERRY_CONTEXT (current_new_target_p),
-                                                                   ECMA_BUILTIN_ID_ARRAY_PROTOTYPE);
+  ecma_object_t *proto_p =
+    ecma_op_get_prototype_from_constructor (JERRY_CONTEXT (current_new_target_p), ECMA_BUILTIN_ID_ARRAY_PROTOTYPE);
 
   if (proto_p == NULL)
   {
@@ -534,7 +515,6 @@ ecma_builtin_array_dispatch_construct (const ecma_value_t *arguments_list_p, /**
   ECMA_SET_NON_NULL_POINTER (object_p->u2.prototype_cp, proto_p);
   ecma_deref_object (proto_p);
   return result;
-#endif /* JERRY_ESNEXT */
 } /* ecma_builtin_array_dispatch_construct */
 
 /**
@@ -560,7 +540,6 @@ ecma_builtin_array_dispatch_routine (uint8_t builtin_routine_id, /**< built-in w
 
       return ecma_is_value_array (arguments_list_p[0]);
     }
-#if JERRY_ESNEXT
     case ECMA_ARRAY_ROUTINE_FROM:
     {
       return ecma_builtin_array_object_from (this_arg, arguments_list_p, arguments_number);
@@ -573,7 +552,6 @@ ecma_builtin_array_dispatch_routine (uint8_t builtin_routine_id, /**< built-in w
     {
       return ecma_copy_value (this_arg);
     }
-#endif /* JERRY_ESNEXT */
     default:
     {
       JERRY_UNREACHABLE ();

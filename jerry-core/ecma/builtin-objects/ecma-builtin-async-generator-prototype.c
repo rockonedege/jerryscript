@@ -21,18 +21,17 @@
 #include "ecma-helpers.h"
 #include "ecma-iterator-object.h"
 #include "ecma-promise-object.h"
+
 #include "jcontext.h"
 #include "opcodes.h"
 #include "vm-defines.h"
-
-#if JERRY_ESNEXT
 
 #define ECMA_BUILTINS_INTERNAL
 #include "ecma-builtins-internal.h"
 
 /**
-  * This object has a custom dispatch function.
-  */
+ * This object has a custom dispatch function.
+ */
 #define BUILTIN_CUSTOM_DISPATCH
 
 /**
@@ -47,7 +46,7 @@ enum
 };
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-async-generator-prototype.inc.h"
-#define BUILTIN_UNDERSCORED_ID async_generator_prototype
+#define BUILTIN_UNDERSCORED_ID  async_generator_prototype
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -56,34 +55,34 @@ enum
  * \addtogroup ecmabuiltins
  * @{
  *
- * \addtogroup asyncgenerator ECMA AsyncGenerator.prototype object built-in
+ * \addtogroup asyncgeneratorprototype ECMA AsyncGenerator.prototype object built-in
  * @{
  */
 
 /**
- * Convert routine type to operation type..
+ * Convert routine type to operation type.
  */
 #define ECMA_ASYNC_GENERATOR_ROUTINE_TO_OPERATION(type) \
-  ((ecma_async_generator_operation_type_t) ((type) - ECMA_ASYNC_GENERATOR_PROTOTYPE_ROUTINE_NEXT))
+  ((ecma_async_generator_operation_type_t) ((type) -ECMA_ASYNC_GENERATOR_PROTOTYPE_ROUTINE_NEXT))
 
 JERRY_STATIC_ASSERT (ECMA_ASYNC_GENERATOR_ROUTINE_TO_OPERATION (ECMA_ASYNC_GENERATOR_PROTOTYPE_ROUTINE_NEXT)
-                     == ECMA_ASYNC_GENERATOR_DO_NEXT,
+                       == ECMA_ASYNC_GENERATOR_DO_NEXT,
                      convert_ecma_async_generator_routine_next_to_ecma_async_generator_do_next_failed);
 
 JERRY_STATIC_ASSERT (ECMA_ASYNC_GENERATOR_ROUTINE_TO_OPERATION (ECMA_ASYNC_GENERATOR_PROTOTYPE_ROUTINE_THROW)
-                     == ECMA_ASYNC_GENERATOR_DO_THROW,
+                       == ECMA_ASYNC_GENERATOR_DO_THROW,
                      convert_ecma_async_generator_routine_throw_to_ecma_async_generator_do_throw_failed);
 
 JERRY_STATIC_ASSERT (ECMA_ASYNC_GENERATOR_ROUTINE_TO_OPERATION (ECMA_ASYNC_GENERATOR_PROTOTYPE_ROUTINE_RETURN)
-                     == ECMA_ASYNC_GENERATOR_DO_RETURN,
+                       == ECMA_ASYNC_GENERATOR_DO_RETURN,
                      convert_ecma_async_generator_routine_return_to_ecma_async_generator_do_return_failed);
 
 /**
-  * Dispatcher of the Generator built-in's routines
-  *
-  * @return ecma value
-  *         Returned value must be freed with ecma_free_value.
-  */
+ * Dispatcher of the Generator built-in's routines
+ *
+ * @return ecma value
+ *         Returned value must be freed with ecma_free_value.
+ */
 ecma_value_t
 ecma_builtin_async_generator_prototype_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wide routine
                                                                                       *   identifier */
@@ -110,7 +109,18 @@ ecma_builtin_async_generator_prototype_dispatch_routine (uint8_t builtin_routine
 
   if (executable_object_p == NULL)
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an async generator object"));
+    const char *msg_p = ecma_get_error_msg (ECMA_ERR_ARGUMENT_THIS_NOT_ASYNC_GENERATOR);
+    lit_utf8_size_t msg_size = ecma_get_error_size (ECMA_ERR_ARGUMENT_THIS_NOT_ASYNC_GENERATOR);
+    ecma_string_t *error_msg_p = ecma_new_ecma_string_from_ascii ((const lit_utf8_byte_t *) msg_p, msg_size);
+
+    ecma_object_t *type_error_obj_p = ecma_new_standard_error (JERRY_ERROR_TYPE, error_msg_p);
+    ecma_deref_ecma_string (error_msg_p);
+
+    ecma_value_t promise = ecma_op_create_promise_object (ECMA_VALUE_EMPTY, ECMA_VALUE_UNDEFINED, NULL);
+    ecma_reject_promise (promise, ecma_make_object_value (type_error_obj_p));
+    ecma_deref_object (type_error_obj_p);
+
+    return promise;
   }
 
   if (executable_object_p->extended_object.u.cls.u2.executable_obj_flags & ECMA_EXECUTABLE_OBJECT_COMPLETED)
@@ -138,5 +148,3 @@ ecma_builtin_async_generator_prototype_dispatch_routine (uint8_t builtin_routine
  * @}
  * @}
  */
-
-#endif /* JERRY_ESNEXT */

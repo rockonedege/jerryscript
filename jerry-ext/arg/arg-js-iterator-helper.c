@@ -13,9 +13,10 @@
  * limitations under the License.
  */
 
+#include "jerryscript.h"
+
 #include "arg-internal.h"
 #include "jerryscript-ext/arg.h"
-#include "jerryscript.h"
 
 /**
  * Pop the current JS argument from the iterator.
@@ -26,8 +27,7 @@
 jerry_value_t
 jerryx_arg_js_iterator_pop (jerryx_arg_js_iterator_t *js_arg_iter_p) /**< the JS arg iterator */
 {
-  return (js_arg_iter_p->js_arg_idx++ < js_arg_iter_p->js_arg_cnt ? *js_arg_iter_p->js_arg_p++
-                                                                  : jerry_create_undefined ());
+  return (js_arg_iter_p->js_arg_idx++ < js_arg_iter_p->js_arg_cnt ? *js_arg_iter_p->js_arg_p++ : jerry_undefined ());
 } /* jerryx_arg_js_iterator_pop */
 
 /**
@@ -41,7 +41,7 @@ jerryx_arg_js_iterator_restore (jerryx_arg_js_iterator_t *js_arg_iter_p) /**< th
 {
   if (js_arg_iter_p->js_arg_idx == 0)
   {
-    return jerry_create_undefined ();
+    return jerry_undefined ();
   }
 
   --js_arg_iter_p->js_arg_idx;
@@ -62,8 +62,7 @@ jerryx_arg_js_iterator_restore (jerryx_arg_js_iterator_t *js_arg_iter_p) /**< th
 jerry_value_t
 jerryx_arg_js_iterator_peek (jerryx_arg_js_iterator_t *js_arg_iter_p) /**< the JS arg iterator */
 {
-  return (js_arg_iter_p->js_arg_idx < js_arg_iter_p->js_arg_cnt ? *js_arg_iter_p->js_arg_p
-                                                                : jerry_create_undefined ());
+  return (js_arg_iter_p->js_arg_idx < js_arg_iter_p->js_arg_cnt ? *js_arg_iter_p->js_arg_p : jerry_undefined ());
 } /* jerryx_arg_js_iterator_peek */
 
 /**

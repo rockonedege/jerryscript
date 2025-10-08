@@ -13,6 +13,10 @@
  * limitations under the License.
  */
 
+#include "jerry-snapshot.h"
+
+#include "jerryscript.h"
+
 #include "ecma-conversion.h"
 #include "ecma-errors.h"
 #include "ecma-exceptions.h"
@@ -20,13 +24,16 @@
 #include "ecma-helpers.h"
 #include "ecma-lex-env.h"
 #include "ecma-literal-storage.h"
+
 #include "jcontext.h"
-#include "jerryscript.h"
-#include "jerry-snapshot.h"
+#include "js-parser-internal.h"
 #include "js-parser.h"
 #include "lit-char-helpers.h"
-#include "js-parser-internal.h"
 #include "re-compiler.h"
+
+/** \addtogroup jerrysnapshot Jerry snapshot operations
+ * @{
+ */
 
 #if JERRY_SNAPSHOT_SAVE || JERRY_SNAPSHOT_EXEC
 
@@ -47,9 +54,8 @@ snapshot_get_global_flags (bool has_regex, /**< regex literal is present */
 #if JERRY_BUILTIN_REGEXP
   flags |= (has_regex ? JERRY_SNAPSHOT_HAS_REGEX_LITERAL : 0);
 #endif /* JERRY_BUILTIN_REGEXP */
-#if JERRY_ESNEXT
+
   flags |= (has_class ? JERRY_SNAPSHOT_HAS_CLASS_LITERAL : 0);
-#endif /* JERRY_ESNEXT */
 
   return flags;
 } /* snapshot_get_global_flags */
@@ -65,9 +71,8 @@ snapshot_check_global_flags (uint32_t global_flags) /**< global flags */
 #if JERRY_BUILTIN_REGEXP
   global_flags &= (uint32_t) ~JERRY_SNAPSHOT_HAS_REGEX_LITERAL;
 #endif /* JERRY_BUILTIN_REGEXP */
-#if JERRY_ESNEXT
+
   global_flags &= (uint32_t) ~JERRY_SNAPSHOT_HAS_CLASS_LITERAL;
-#endif /* JERRY_ESNEXT */
 
   return global_flags == snapshot_get_global_flags (false, false);
 } /* snapshot_check_global_flags */
@@ -87,10 +92,6 @@ typedef struct
   bool class_found;
 } snapshot_globals_t;
 
-/** \addtogroup jerrysnapshot Jerry snapshot operations
- * @{
- */
-
 /**
  * Write data into the specified buffer.
  *
@@ -103,8 +104,8 @@ typedef struct
 static inline bool JERRY_ATTR_ALWAYS_INLINE
 snapshot_write_to_buffer_by_offset (uint8_t *buffer_p, /**< buffer */
                                     size_t buffer_size, /**< size of buffer */
-                                    size_t *in_out_buffer_offset_p,  /**< [in,out] offset to write to
-                                                                      * incremented with data_size */
+                                    size_t *in_out_buffer_offset_p, /**< [in,out] offset to write to
+                                                                     * incremented with data_size */
                                     const void *data_p, /**< data */
                                     size_t data_size) /**< size of the writable data */
 {
@@ -139,7 +140,7 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
                             size_t snapshot_buffer_size, /**< snapshot buffer size */
                             snapshot_globals_t *globals_p) /**< snapshot globals */
 {
-  const jerry_char_t *error_buffer_too_small_p = (const jerry_char_t *) "Snapshot buffer too small";
+  const char *error_buffer_too_small_p = "Snapshot buffer too small";
 
   if (!ecma_is_value_empty (globals_p->snapshot_error))
   {
@@ -150,8 +151,7 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
 
   if (globals_p->snapshot_buffer_write_offset > JERRY_SNAPSHOT_MAXIMUM_WRITE_OFFSET)
   {
-    globals_p->snapshot_error = jerry_create_error (JERRY_ERROR_RANGE,
-                                                    (const jerry_char_t *) ecma_error_maximum_snapshot_size);
+    globals_p->snapshot_error = jerry_throw_sz (JERRY_ERROR_RANGE, ecma_get_error_msg (ECMA_ERR_MAXIMUM_SNAPSHOT_SIZE));
     return 0;
   }
 
@@ -162,11 +162,10 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
   uint8_t *copied_code_start_p = snapshot_buffer_p + globals_p->snapshot_buffer_write_offset;
   ecma_compiled_code_t *copied_code_p = (ecma_compiled_code_t *) copied_code_start_p;
 
-#if JERRY_ESNEXT
   if (compiled_code_p->status_flags & CBC_CODE_FLAGS_HAS_TAGGED_LITERALS)
   {
-    globals_p->snapshot_error = jerry_create_error (JERRY_ERROR_RANGE,
-                                                    (const jerry_char_t *) ecma_error_tagged_template_literals);
+    globals_p->snapshot_error =
+      jerry_throw_sz (JERRY_ERROR_RANGE, ecma_get_error_msg (ECMA_ERR_TAGGED_TEMPLATE_LITERALS));
     return 0;
   }
 
@@ -174,7 +173,6 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
   {
     globals_p->class_found = true;
   }
-#endif /* JERRY_ESNEXT */
 
 #if JERRY_BUILTIN_REGEXP
   if (!CBC_IS_FUNCTION (compiled_code_p->status_flags))
@@ -182,8 +180,7 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
     /* Regular expression. */
     if (globals_p->snapshot_buffer_write_offset + sizeof (ecma_compiled_code_t) > snapshot_buffer_size)
     {
-      globals_p->snapshot_error = jerry_create_error (JERRY_ERROR_RANGE,
-                                                      (const jerry_char_t *) error_buffer_too_small_p);
+      globals_p->snapshot_error = jerry_throw_sz (JERRY_ERROR_RANGE, error_buffer_too_small_p);
       return 0;
     }
 
@@ -204,8 +201,7 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
                                              buffer_p,
                                              buffer_size))
     {
-      globals_p->snapshot_error = jerry_create_error (JERRY_ERROR_RANGE,
-                                                      (const jerry_char_t *) error_buffer_too_small_p);
+      globals_p->snapshot_error = jerry_throw_sz (JERRY_ERROR_RANGE, error_buffer_too_small_p);
       /* cannot return inside ECMA_FINALIZE_UTF8_STRING */
     }
 
@@ -217,8 +213,7 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
     }
 
     globals_p->regex_found = true;
-    globals_p->snapshot_buffer_write_offset = JERRY_ALIGNUP (globals_p->snapshot_buffer_write_offset,
-                                                             JMEM_ALIGNMENT);
+    globals_p->snapshot_buffer_write_offset = JERRY_ALIGNUP (globals_p->snapshot_buffer_write_offset, JMEM_ALIGNMENT);
 
     /* Regexp character size is stored in refs. */
     copied_code_p->refs = (uint16_t) pattern_size;
@@ -240,7 +235,7 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
                                            compiled_code_p,
                                            ((size_t) compiled_code_p->size) << JMEM_ALIGNMENT_LOG))
   {
-    globals_p->snapshot_error = jerry_create_error (JERRY_ERROR_RANGE, (const jerry_char_t *) error_buffer_too_small_p);
+    globals_p->snapshot_error = jerry_throw_sz (JERRY_ERROR_RANGE, error_buffer_too_small_p);
     return 0;
   }
 
@@ -274,8 +269,7 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
 
   for (uint32_t i = const_literal_end; i < literal_end; i++)
   {
-    ecma_compiled_code_t *bytecode_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t,
-                                                                        literal_start_p[i]);
+    ecma_compiled_code_t *bytecode_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t, literal_start_p[i]);
 
     if (bytecode_p == compiled_code_p)
     {
@@ -283,10 +277,7 @@ snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, /**< co
     }
     else
     {
-      uint32_t offset = snapshot_add_compiled_code (bytecode_p,
-                                                    snapshot_buffer_p,
-                                                    snapshot_buffer_size,
-                                                    globals_p);
+      uint32_t offset = snapshot_add_compiled_code (bytecode_p, snapshot_buffer_p, snapshot_buffer_size, globals_p);
 
       JERRY_ASSERT (!ecma_is_value_empty (globals_p->snapshot_error) || offset > start_offset);
 
@@ -316,10 +307,9 @@ static_snapshot_error_unsupported_literal (snapshot_globals_t *globals_p, /**< s
 
   ecma_deref_ecma_string (literal_string_p);
 
-  ecma_object_t *error_object_p = ecma_new_standard_error (JERRY_ERROR_RANGE,
-                                                           ecma_stringbuilder_finalize (&builder));
+  ecma_object_t *error_object_p = ecma_new_standard_error (JERRY_ERROR_RANGE, ecma_stringbuilder_finalize (&builder));
 
-  globals_p->snapshot_error = ecma_create_error_object_reference (error_object_p);
+  globals_p->snapshot_error = ecma_create_exception_from_object (error_object_p);
 } /* static_snapshot_error_unsupported_literal */
 
 /**
@@ -342,8 +332,7 @@ static_snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, 
 
   if (globals_p->snapshot_buffer_write_offset >= JERRY_SNAPSHOT_MAXIMUM_WRITE_OFFSET)
   {
-    globals_p->snapshot_error = jerry_create_error (JERRY_ERROR_RANGE,
-                                                    (const jerry_char_t *) ecma_error_maximum_snapshot_size);
+    globals_p->snapshot_error = jerry_throw_sz (JERRY_ERROR_RANGE, ecma_get_error_msg (ECMA_ERR_MAXIMUM_SNAPSHOT_SIZE));
     return 0;
   }
 
@@ -357,8 +346,8 @@ static_snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, 
   if (!CBC_IS_FUNCTION (compiled_code_p->status_flags))
   {
     /* Regular expression literals are not supported. */
-    globals_p->snapshot_error = jerry_create_error (JERRY_ERROR_RANGE,
-                                                    (const jerry_char_t *) ecma_error_regular_expression_not_supported);
+    globals_p->snapshot_error =
+      jerry_throw_sz (JERRY_ERROR_RANGE, ecma_get_error_msg (ECMA_ERR_REGULAR_EXPRESSION_NOT_SUPPORTED));
     return 0;
   }
 
@@ -368,8 +357,7 @@ static_snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, 
                                            compiled_code_p,
                                            ((size_t) compiled_code_p->size) << JMEM_ALIGNMENT_LOG))
   {
-    globals_p->snapshot_error = jerry_create_error (JERRY_ERROR_RANGE,
-                                                    (const jerry_char_t *) ecma_error_snapshot_buffer_small);
+    globals_p->snapshot_error = jerry_throw_sz (JERRY_ERROR_RANGE, ecma_get_error_msg (ECMA_ERR_SNAPSHOT_BUFFER_SMALL));
     return 0;
   }
 
@@ -404,8 +392,7 @@ static_snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, 
 
   for (uint32_t i = 0; i < const_literal_end; i++)
   {
-    if (!ecma_is_value_direct (literal_start_p[i])
-        && !ecma_is_value_direct_string (literal_start_p[i]))
+    if (!ecma_is_value_direct (literal_start_p[i]) && !ecma_is_value_direct_string (literal_start_p[i]))
     {
       static_snapshot_error_unsupported_literal (globals_p, literal_start_p[i]);
       return 0;
@@ -414,8 +401,7 @@ static_snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, 
 
   for (uint32_t i = const_literal_end; i < literal_end; i++)
   {
-    ecma_compiled_code_t *bytecode_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t,
-                                                                        literal_start_p[i]);
+    ecma_compiled_code_t *bytecode_p = ECMA_GET_INTERNAL_VALUE_POINTER (ecma_compiled_code_t, literal_start_p[i]);
 
     if (bytecode_p == compiled_code_p)
     {
@@ -423,10 +409,8 @@ static_snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, 
     }
     else
     {
-      uint32_t offset = static_snapshot_add_compiled_code (bytecode_p,
-                                                           snapshot_buffer_p,
-                                                           snapshot_buffer_size,
-                                                           globals_p);
+      uint32_t offset =
+        static_snapshot_add_compiled_code (bytecode_p, snapshot_buffer_p, snapshot_buffer_size, globals_p);
 
       JERRY_ASSERT (!ecma_is_value_empty (globals_p->snapshot_error) || offset > start_offset);
 
@@ -439,8 +423,7 @@ static_snapshot_add_compiled_code (const ecma_compiled_code_t *compiled_code_p, 
 
   while (literal_start_p < (ecma_value_t *) buffer_p)
   {
-    if (!ecma_is_value_direct_string (*literal_start_p)
-        && !ecma_is_value_empty (*literal_start_p))
+    if (!ecma_is_value_direct_string (*literal_start_p) && !ecma_is_value_empty (*literal_start_p))
     {
       static_snapshot_error_unsupported_literal (globals_p, *literal_start_p);
       return 0;
@@ -535,8 +518,7 @@ jerry_snapshot_set_offsets (uint32_t *buffer_p, /**< buffer */
     JERRY_ASSERT ((code_size % sizeof (uint32_t)) == 0);
     buffer_p += code_size / sizeof (uint32_t);
     size -= code_size;
-  }
-  while (size > 0);
+  } while (size > 0);
 } /* jerry_snapshot_set_offsets */
 
 #endif /* JERRY_SNAPSHOT_SAVE */
@@ -571,11 +553,9 @@ snapshot_load_compiled_code (const uint8_t *base_addr_p, /**< base address of th
     const uint8_t *regex_start_p = ((const uint8_t *) bytecode_p) + sizeof (ecma_compiled_code_t);
 
     /* Real size is stored in refs. */
-    ecma_string_t *pattern_str_p = ecma_new_ecma_string_from_utf8 (regex_start_p,
-                                                                   bytecode_p->refs);
+    ecma_string_t *pattern_str_p = ecma_new_ecma_string_from_utf8 (regex_start_p, bytecode_p->refs);
 
-    const re_compiled_code_t *re_bytecode_p = re_compile_bytecode (pattern_str_p,
-                                                                   bytecode_p->status_flags);
+    const re_compiled_code_t *re_bytecode_p = re_compile_bytecode (pattern_str_p, bytecode_p->status_flags);
     ecma_deref_ecma_string (pattern_str_p);
 
     return (ecma_compiled_code_t *) re_bytecode_p;
@@ -592,7 +572,7 @@ snapshot_load_compiled_code (const uint8_t *base_addr_p, /**< base address of th
   if (JERRY_UNLIKELY (script_p->refs_and_type >= CBC_SCRIPT_REF_MAX))
   {
     /* This is probably never happens in practice. */
-    jerry_fatal (ERR_REF_COUNT_LIMIT);
+    jerry_fatal (JERRY_FATAL_REF_COUNT_LIMIT);
   }
 
   script_p->refs_and_type += CBC_SCRIPT_REF_ONE;
@@ -622,8 +602,7 @@ snapshot_load_compiled_code (const uint8_t *base_addr_p, /**< base address of th
     ECMA_SET_INTERNAL_VALUE_POINTER (args_p->script_value, script_p);
   }
 
-  if (copy_bytecode
-      || (header_size + (literal_end * sizeof (uint16_t)) + BYTECODE_NO_COPY_THRESHOLD > code_size))
+  if (copy_bytecode || (header_size + (literal_end * sizeof (uint16_t)) + BYTECODE_NO_COPY_THRESHOLD > code_size))
   {
     bytecode_p = (ecma_compiled_code_t *) jmem_heap_alloc_block (code_size);
 
@@ -646,7 +625,6 @@ snapshot_load_compiled_code (const uint8_t *base_addr_p, /**< base address of th
       extra_bytes += (uint32_t) (argument_end * sizeof (ecma_value_t));
     }
 
-#if JERRY_ESNEXT
     /* function name */
     if (CBC_FUNCTION_GET_TYPE (bytecode_p->status_flags) != CBC_FUNCTION_CONSTRUCTOR)
     {
@@ -658,12 +636,11 @@ snapshot_load_compiled_code (const uint8_t *base_addr_p, /**< base address of th
     {
       extra_bytes += (uint32_t) sizeof (ecma_value_t);
     }
-#endif /* JERRY_ESNEXT */
 
-#if JERRY_RESOURCE_NAME
-    /* resource name */
+#if JERRY_SOURCE_NAME
+    /* source name */
     extra_bytes += (uint32_t) sizeof (ecma_value_t);
-#endif /* JERRY_RESOURCE_NAME */
+#endif /* JERRY_SOURCE_NAME */
 
     new_code_size = JERRY_ALIGNUP (new_code_size + extra_bytes, JMEM_ALIGNMENT);
 
@@ -716,19 +693,15 @@ snapshot_load_compiled_code (const uint8_t *base_addr_p, /**< base address of th
     if (literal_offset == 0)
     {
       /* Self reference */
-      ECMA_SET_INTERNAL_VALUE_POINTER (literal_start_p[i],
-                                       bytecode_p);
+      ECMA_SET_INTERNAL_VALUE_POINTER (literal_start_p[i], bytecode_p);
     }
     else
     {
       ecma_compiled_code_t *literal_bytecode_p;
-      literal_bytecode_p = snapshot_load_compiled_code (base_addr_p + literal_offset,
-                                                        literal_base_p,
-                                                        script_p,
-                                                        copy_bytecode);
+      literal_bytecode_p =
+        snapshot_load_compiled_code (base_addr_p + literal_offset, literal_base_p, script_p, copy_bytecode);
 
-      ECMA_SET_INTERNAL_VALUE_POINTER (literal_start_p[i],
-                                       literal_bytecode_p);
+      ECMA_SET_INTERNAL_VALUE_POINTER (literal_start_p[i], literal_bytecode_p);
     }
   }
 
@@ -769,7 +742,7 @@ jerry_generate_snapshot (jerry_value_t compiled_code, /**< parsed script or func
 
   if ((generate_snapshot_opts & ~allowed_options) != 0)
   {
-    return jerry_create_error (JERRY_ERROR_RANGE, (const jerry_char_t *) ecma_error_snapshot_flag_not_supported);
+    return jerry_throw_sz (JERRY_ERROR_RANGE, ecma_get_error_msg (ECMA_ERR_SNAPSHOT_FLAG_NOT_SUPPORTED));
   }
 
   const ecma_compiled_code_t *bytecode_data_p = NULL;
@@ -801,12 +774,11 @@ jerry_generate_snapshot (jerry_value_t compiled_code, /**< parsed script or func
 
   if (JERRY_UNLIKELY (bytecode_data_p == NULL))
   {
-    return jerry_create_error (JERRY_ERROR_RANGE, (const jerry_char_t *) ECMA_ERR_MSG ("Unsupported compiled code"));
+    return jerry_throw_sz (JERRY_ERROR_RANGE, ecma_get_error_msg (ECMA_ERR_SNAPSHOT_UNSUPPORTED_COMPILED_CODE));
   }
 
   snapshot_globals_t globals;
-  const uint32_t aligned_header_size = JERRY_ALIGNUP (sizeof (jerry_snapshot_header_t),
-                                                      JMEM_ALIGNMENT);
+  const uint32_t aligned_header_size = JERRY_ALIGNUP (sizeof (jerry_snapshot_header_t), JMEM_ALIGNMENT);
 
   globals.snapshot_buffer_write_offset = aligned_header_size;
   globals.snapshot_error = ECMA_VALUE_EMPTY;
@@ -852,7 +824,7 @@ jerry_generate_snapshot (jerry_value_t compiled_code, /**< parsed script or func
                                           &literals_num))
     {
       JERRY_ASSERT (lit_map_p == NULL);
-      return jerry_create_error (JERRY_ERROR_COMMON, (const jerry_char_t *) ecma_error_cannot_allocate_memory_literals);
+      return jerry_throw_sz (JERRY_ERROR_COMMON, ecma_get_error_msg (ECMA_ERR_CANNOT_ALLOCATE_MEMORY_LITERALS));
     }
 
     jerry_snapshot_set_offsets (buffer_p + (aligned_header_size / sizeof (uint32_t)),
@@ -862,11 +834,7 @@ jerry_generate_snapshot (jerry_value_t compiled_code, /**< parsed script or func
 
   size_t header_offset = 0;
 
-  snapshot_write_to_buffer_by_offset ((uint8_t *) buffer_p,
-                                      buffer_size,
-                                      &header_offset,
-                                      &header,
-                                      sizeof (header));
+  snapshot_write_to_buffer_by_offset ((uint8_t *) buffer_p, buffer_size, &header_offset, &header, sizeof (header));
 
   if (lit_map_p != NULL)
   {
@@ -880,7 +848,7 @@ jerry_generate_snapshot (jerry_value_t compiled_code, /**< parsed script or func
   JERRY_UNUSED (buffer_p);
   JERRY_UNUSED (buffer_size);
 
-  return jerry_create_error (JERRY_ERROR_COMMON, (const jerry_char_t *) "Snapshot save is not supported");
+  return jerry_throw_sz (JERRY_ERROR_COMMON, ecma_get_error_msg (ECMA_ERR_SNAPSHOT_SAVE_DISABLED));
 #endif /* JERRY_SNAPSHOT_SAVE */
 } /* jerry_generate_snapshot */
 
@@ -888,7 +856,7 @@ jerry_generate_snapshot (jerry_value_t compiled_code, /**< parsed script or func
  * Execute/load snapshot from specified buffer
  *
  * Note:
- *      returned value must be freed with jerry_release_value, when it is no longer needed.
+ *      returned value must be freed with jerry_value_free, when it is no longer needed.
  *
  * @return result of bytecode - if run was successful
  *         thrown error - otherwise
@@ -904,48 +872,39 @@ jerry_exec_snapshot (const uint32_t *snapshot_p, /**< snapshot */
 #if JERRY_SNAPSHOT_EXEC
   JERRY_ASSERT (snapshot_p != NULL);
 
-  uint32_t allowed_opts = (JERRY_SNAPSHOT_EXEC_COPY_DATA
-                           | JERRY_SNAPSHOT_EXEC_ALLOW_STATIC
-                           | JERRY_SNAPSHOT_EXEC_LOAD_AS_FUNCTION
-                           | JERRY_SNAPSHOT_EXEC_HAS_RESOURCE
-                           | JERRY_SNAPSHOT_EXEC_HAS_USER_VALUE);
+  uint32_t allowed_opts =
+    (JERRY_SNAPSHOT_EXEC_COPY_DATA | JERRY_SNAPSHOT_EXEC_ALLOW_STATIC | JERRY_SNAPSHOT_EXEC_LOAD_AS_FUNCTION
+     | JERRY_SNAPSHOT_EXEC_HAS_SOURCE_NAME | JERRY_SNAPSHOT_EXEC_HAS_USER_VALUE);
 
   if ((exec_snapshot_opts & ~(allowed_opts)) != 0)
   {
-    ecma_raise_range_error (ECMA_ERR_MSG ("Unsupported snapshot exec flags are specified"));
-    return ecma_create_error_reference_from_context ();
+    return jerry_throw_sz (JERRY_ERROR_RANGE,
+                           ecma_get_error_msg (ECMA_ERR_UNSUPPORTED_SNAPSHOT_EXEC_FLAGS_ARE_SPECIFIED));
   }
 
-  const char * const invalid_version_error_p = "Invalid snapshot version or unsupported features present";
-  const char * const invalid_format_error_p = "Invalid snapshot format";
   const uint8_t *snapshot_data_p = (uint8_t *) snapshot_p;
 
   if (snapshot_size <= sizeof (jerry_snapshot_header_t))
   {
-    ecma_raise_type_error (invalid_format_error_p);
-    return ecma_create_error_reference_from_context ();
+    return jerry_throw_sz (JERRY_ERROR_TYPE, ecma_get_error_msg (ECMA_ERR_INVALID_SNAPSHOT_FORMAT));
   }
 
   const jerry_snapshot_header_t *header_p = (const jerry_snapshot_header_t *) snapshot_data_p;
 
-  if (header_p->magic != JERRY_SNAPSHOT_MAGIC
-      || header_p->version != JERRY_SNAPSHOT_VERSION
+  if (header_p->magic != JERRY_SNAPSHOT_MAGIC || header_p->version != JERRY_SNAPSHOT_VERSION
       || !snapshot_check_global_flags (header_p->global_flags))
   {
-    ecma_raise_type_error (invalid_version_error_p);
-    return ecma_create_error_reference_from_context ();
+    return jerry_throw_sz (JERRY_ERROR_TYPE, ecma_get_error_msg (ECMA_ERR_INVALID_SNAPSHOT_VERSION_OR_FEATURES));
   }
 
   if (header_p->lit_table_offset > snapshot_size)
   {
-    ecma_raise_type_error (invalid_version_error_p);
-    return ecma_create_error_reference_from_context ();
+    return jerry_throw_sz (JERRY_ERROR_TYPE, ecma_get_error_msg (ECMA_ERR_INVALID_SNAPSHOT_VERSION_OR_FEATURES));
   }
 
   if (func_index >= header_p->number_of_funcs)
   {
-    ecma_raise_range_error (ECMA_ERR_MSG ("Function index is higher than maximum"));
-    return ecma_create_error_reference_from_context ();
+    return jerry_throw_sz (JERRY_ERROR_TYPE, ecma_get_error_msg (ECMA_ERR_FUNCTION_INDEX_IS_HIGHER_THAN_MAXIMUM));
   }
 
   JERRY_ASSERT ((header_p->lit_table_offset % sizeof (uint32_t)) == 0);
@@ -957,22 +916,20 @@ jerry_exec_snapshot (const uint32_t *snapshot_p, /**< snapshot */
   {
     if (!(exec_snapshot_opts & JERRY_SNAPSHOT_EXEC_ALLOW_STATIC))
     {
-      ecma_raise_common_error (ECMA_ERR_MSG ("Static snapshots are not enabled"));
-      return ecma_create_error_reference_from_context ();
+      return jerry_throw_sz (JERRY_ERROR_COMMON, ecma_get_error_msg (ECMA_ERR_STATIC_SNAPSHOTS_ARE_NOT_ENABLED));
     }
 
     if (exec_snapshot_opts & JERRY_SNAPSHOT_EXEC_COPY_DATA)
     {
-      ecma_raise_common_error (ECMA_ERR_MSG ("Static snapshots cannot be copied into memory"));
-      return ecma_create_error_reference_from_context ();
+      return jerry_throw_sz (JERRY_ERROR_COMMON,
+                             ecma_get_error_msg (ECMA_ERR_STATIC_SNAPSHOTS_CANNOT_BE_COPIED_INTO_MEMORY));
     }
   }
   else
   {
     ecma_value_t user_value = ECMA_VALUE_EMPTY;
 
-    if ((exec_snapshot_opts & JERRY_SNAPSHOT_EXEC_HAS_USER_VALUE)
-        && option_values_p != NULL)
+    if ((exec_snapshot_opts & JERRY_SNAPSHOT_EXEC_HAS_USER_VALUE) && option_values_p != NULL)
     {
       user_value = option_values_p->user_value;
     }
@@ -992,19 +949,18 @@ jerry_exec_snapshot (const uint32_t *snapshot_p, /**< snapshot */
     script_p->realm_p = (ecma_object_t *) JERRY_CONTEXT (global_object_p);
 #endif /* JERRY_BUILTIN_REALMS */
 
-#if JERRY_RESOURCE_NAME
-    ecma_value_t resource_name = ecma_make_magic_string_value (LIT_MAGIC_STRING_RESOURCE_ANON);
+#if JERRY_SOURCE_NAME
+    ecma_value_t source_name = ecma_make_magic_string_value (LIT_MAGIC_STRING_SOURCE_NAME_ANON);
 
-    if ((exec_snapshot_opts & JERRY_SNAPSHOT_EXEC_HAS_RESOURCE)
-        && option_values_p != NULL
-        && ecma_is_value_string (option_values_p->resource_name) > 0)
+    if ((exec_snapshot_opts & JERRY_SNAPSHOT_EXEC_HAS_SOURCE_NAME) && option_values_p != NULL
+        && ecma_is_value_string (option_values_p->source_name) > 0)
     {
-      ecma_ref_ecma_string (ecma_get_string_from_value (option_values_p->resource_name));
-      resource_name = option_values_p->resource_name;
+      ecma_ref_ecma_string (ecma_get_string_from_value (option_values_p->source_name));
+      source_name = option_values_p->source_name;
     }
 
-    script_p->resource_name = resource_name;
-#endif /* JERRY_RESOURCE_NAME */
+    script_p->source_name = source_name;
+#endif /* JERRY_SOURCE_NAME */
 
 #if JERRY_FUNCTION_TO_STRING
     script_p->source_code = ecma_make_magic_string_value (LIT_MAGIC_STRING__EMPTY);
@@ -1021,7 +977,7 @@ jerry_exec_snapshot (const uint32_t *snapshot_p, /**< snapshot */
     {
       JERRY_ASSERT (script_p->refs_and_type >= CBC_SCRIPT_REF_ONE);
       jmem_heap_free_block (script_p, script_size);
-      return ecma_raise_type_error (invalid_format_error_p);
+      return ecma_raise_type_error (ECMA_ERR_INVALID_SNAPSHOT_FORMAT);
     }
 
     script_p->refs_and_type -= CBC_SCRIPT_REF_ONE;
@@ -1049,12 +1005,10 @@ jerry_exec_snapshot (const uint32_t *snapshot_p, /**< snapshot */
     JERRY_ASSERT (global_object_p == (ecma_object_t *) ecma_op_function_get_realm (bytecode_p));
 #endif /* JERRY_BUILTIN_REALMS */
 
-#if JERRY_ESNEXT
     if (bytecode_p->status_flags & CBC_CODE_FLAGS_LEXICAL_BLOCK_NEEDED)
     {
       ecma_create_global_lexical_block (global_object_p);
     }
-#endif /* JERRY_ESNEXT */
 
     ecma_object_t *lex_env_p = ecma_get_global_scope (global_object_p);
     ecma_object_t *func_obj_p = ecma_op_create_simple_function_object (lex_env_p, bytecode_p);
@@ -1067,7 +1021,7 @@ jerry_exec_snapshot (const uint32_t *snapshot_p, /**< snapshot */
   }
   else
   {
-    ret_val = vm_run_global (bytecode_p);
+    ret_val = vm_run_global (bytecode_p, NULL);
     if (!(bytecode_p->status_flags & CBC_CODE_FLAGS_STATIC_FUNCTION))
     {
       ecma_bytecode_deref (bytecode_p);
@@ -1076,7 +1030,7 @@ jerry_exec_snapshot (const uint32_t *snapshot_p, /**< snapshot */
 
   if (ECMA_IS_VALUE_ERROR (ret_val))
   {
-    return ecma_create_error_reference_from_context ();
+    return ecma_create_exception_from_context ();
   }
 
   return ret_val;
@@ -1087,13 +1041,9 @@ jerry_exec_snapshot (const uint32_t *snapshot_p, /**< snapshot */
   JERRY_UNUSED (exec_snapshot_opts);
   JERRY_UNUSED (option_values_p);
 
-  return jerry_create_error (JERRY_ERROR_COMMON, (const jerry_char_t *) "Snapshot execution is not supported");
+  return jerry_throw_sz (JERRY_ERROR_COMMON, ecma_get_error_msg (ECMA_ERR_SNAPSHOT_EXEC_DISABLED));
 #endif /* JERRY_SNAPSHOT_EXEC */
 } /* jerry_exec_snapshot */
-
-/**
- * @}
- */
 
 #if JERRY_SNAPSHOT_SAVE
 
@@ -1113,8 +1063,7 @@ scan_snapshot_functions (const uint8_t *buffer_p, /**< snapshot buffer start */
     const ecma_compiled_code_t *bytecode_p = (ecma_compiled_code_t *) buffer_p;
     uint32_t code_size = ((uint32_t) bytecode_p->size) << JMEM_ALIGNMENT_LOG;
 
-    if (CBC_IS_FUNCTION (bytecode_p->status_flags)
-        && !(bytecode_p->status_flags & CBC_CODE_FLAGS_STATIC_FUNCTION))
+    if (CBC_IS_FUNCTION (bytecode_p->status_flags) && !(bytecode_p->status_flags & CBC_CODE_FLAGS_STATIC_FUNCTION))
     {
       const ecma_value_t *literal_start_p;
       uint32_t const_literal_end;
@@ -1159,8 +1108,7 @@ scan_snapshot_functions (const uint8_t *buffer_p, /**< snapshot buffer start */
     }
 
     buffer_p += code_size;
-  }
-  while (buffer_p < buffer_end_p);
+  } while (buffer_p < buffer_end_p);
 } /* scan_snapshot_functions */
 
 /**
@@ -1179,8 +1127,7 @@ update_literal_offsets (uint8_t *buffer_p, /**< [in,out] snapshot buffer start *
     const ecma_compiled_code_t *bytecode_p = (ecma_compiled_code_t *) buffer_p;
     uint32_t code_size = ((uint32_t) bytecode_p->size) << JMEM_ALIGNMENT_LOG;
 
-    if (CBC_IS_FUNCTION (bytecode_p->status_flags)
-        && !(bytecode_p->status_flags & CBC_CODE_FLAGS_STATIC_FUNCTION))
+    if (CBC_IS_FUNCTION (bytecode_p->status_flags) && !(bytecode_p->status_flags & CBC_CODE_FLAGS_STATIC_FUNCTION))
     {
       ecma_value_t *literal_start_p;
       uint32_t const_literal_end;
@@ -1239,8 +1186,7 @@ update_literal_offsets (uint8_t *buffer_p, /**< [in,out] snapshot buffer start *
     }
 
     buffer_p += code_size;
-  }
-  while (buffer_p < buffer_end_p);
+  } while (buffer_p < buffer_end_p);
 } /* update_literal_offsets */
 
 #endif /* JERRY_SNAPSHOT_SAVE */
@@ -1283,8 +1229,7 @@ jerry_merge_snapshots (const uint32_t **inp_buffers_p, /**< array of (pointers t
 
     const jerry_snapshot_header_t *header_p = (const jerry_snapshot_header_t *) inp_buffers_p[i];
 
-    if (header_p->magic != JERRY_SNAPSHOT_MAGIC
-        || header_p->version != JERRY_SNAPSHOT_VERSION
+    if (header_p->magic != JERRY_SNAPSHOT_MAGIC || header_p->version != JERRY_SNAPSHOT_VERSION
         || !snapshot_check_global_flags (header_p->global_flags))
     {
       *error_p = "invalid snapshot version or unsupported features present";
@@ -1303,10 +1248,7 @@ jerry_merge_snapshots (const uint32_t **inp_buffers_p, /**< array of (pointers t
     number_of_funcs += header_p->number_of_funcs;
     functions_size += header_p->lit_table_offset - start_offset;
 
-    scan_snapshot_functions (data_p + start_offset,
-                             literal_base_p,
-                             lit_pool_p,
-                             literal_base_p);
+    scan_snapshot_functions (data_p + start_offset, literal_base_p, lit_pool_p, literal_base_p);
   }
 
   JERRY_ASSERT (number_of_funcs > 0);
@@ -1436,14 +1378,12 @@ jerry_save_literals_heap_max (ecma_string_t *literals[], /**< array of literals 
 {
   lit_utf8_size_t max_idx = node_idx;
 
-  if (child_idx1 < num_of_nodes
-      && jerry_save_literals_compare (literals[max_idx], literals[child_idx1]))
+  if (child_idx1 < num_of_nodes && jerry_save_literals_compare (literals[max_idx], literals[child_idx1]))
   {
     max_idx = child_idx1;
   }
 
-  if (child_idx2 < num_of_nodes
-      && jerry_save_literals_compare (literals[max_idx], literals[child_idx2]))
+  if (child_idx2 < num_of_nodes && jerry_save_literals_compare (literals[max_idx], literals[child_idx2]))
   {
     max_idx = child_idx2;
   }
@@ -1461,17 +1401,14 @@ jerry_save_literals_down_heap (ecma_string_t *literals[], /**< array of literals
 {
   while (true)
   {
-    lit_utf8_size_t max_idx = jerry_save_literals_heap_max (literals,
-                                                            num_of_nodes,
-                                                            node_idx,
-                                                            2 * node_idx + 1,
-                                                            2 * node_idx + 2);
+    lit_utf8_size_t max_idx =
+      jerry_save_literals_heap_max (literals, num_of_nodes, node_idx, 2 * node_idx + 1, 2 * node_idx + 2);
     if (max_idx == node_idx)
     {
       break;
     }
 
-    ecma_string_t *tmp_str_p  = literals[node_idx];
+    ecma_string_t *tmp_str_p = literals[node_idx];
     literals[node_idx] = literals[max_idx];
     literals[max_idx] = tmp_str_p;
 
@@ -1518,22 +1455,17 @@ jerry_save_literals_sort (ecma_string_t *literals[], /**< array of literals */
 static uint8_t *
 jerry_append_chars_to_buffer (uint8_t *buffer_p, /**< buffer */
                               uint8_t *buffer_end_p, /**< the end of the buffer */
-                              const char *chars, /**< string */
-                              lit_utf8_size_t string_size) /**< string size */
+                              const jerry_char_t *chars, /**< string */
+                              jerry_size_t string_size) /**< string size */
 {
   if (buffer_p > buffer_end_p)
   {
     return buffer_p;
   }
 
-  if (string_size == 0)
-  {
-    string_size = (lit_utf8_size_t) strlen (chars);
-  }
-
   if (buffer_p + string_size <= buffer_end_p)
   {
-    memcpy ((char *) buffer_p, chars, string_size);
+    memcpy ((char *) buffer_p, (const char *) chars, string_size);
 
     return buffer_p + string_size;
   }
@@ -1557,8 +1489,8 @@ jerry_append_ecma_string_to_buffer (uint8_t *buffer_p, /**< buffer */
   /* Append the string to the buffer. */
   uint8_t *new_buffer_p = jerry_append_chars_to_buffer (buffer_p,
                                                         buffer_end_p,
-                                                        (const char *) str_buffer_p,
-                                                        str_buffer_size);
+                                                        (const jerry_char_t *) str_buffer_p,
+                                                        (jerry_size_t) str_buffer_size);
 
   ECMA_FINALIZE_UTF8_STRING (str_buffer_p, str_buffer_size);
 
@@ -1576,16 +1508,15 @@ jerry_append_number_to_buffer (uint8_t *buffer_p, /**< buffer */
                                lit_utf8_size_t number) /**< number */
 {
   lit_utf8_byte_t uint32_to_str_buffer[ECMA_MAX_CHARS_IN_STRINGIFIED_UINT32];
-  lit_utf8_size_t utf8_str_size = ecma_uint32_to_utf8_string (number,
-                                                              uint32_to_str_buffer,
-                                                              ECMA_MAX_CHARS_IN_STRINGIFIED_UINT32);
+  lit_utf8_size_t utf8_str_size =
+    ecma_uint32_to_utf8_string (number, uint32_to_str_buffer, ECMA_MAX_CHARS_IN_STRINGIFIED_UINT32);
 
   JERRY_ASSERT (utf8_str_size <= ECMA_MAX_CHARS_IN_STRINGIFIED_UINT32);
 
   return jerry_append_chars_to_buffer (buffer_p,
                                        buffer_end_p,
-                                       (const char *) uint32_to_str_buffer,
-                                       utf8_str_size);
+                                       (const jerry_char_t *) uint32_to_str_buffer,
+                                       (jerry_size_t) utf8_str_size);
 } /* jerry_append_number_to_buffer */
 
 #endif /* JERRY_SNAPSHOT_SAVE */
@@ -1612,10 +1543,8 @@ jerry_get_literals_from_snapshot (const uint32_t *snapshot_p, /**< input snapsho
   const uint8_t *snapshot_data_p = (uint8_t *) snapshot_p;
   const jerry_snapshot_header_t *header_p = (const jerry_snapshot_header_t *) snapshot_data_p;
 
-  if (snapshot_size <= sizeof (jerry_snapshot_header_t)
-      || header_p->magic != JERRY_SNAPSHOT_MAGIC
-      || header_p->version != JERRY_SNAPSHOT_VERSION
-      || !snapshot_check_global_flags (header_p->global_flags))
+  if (snapshot_size <= sizeof (jerry_snapshot_header_t) || header_p->magic != JERRY_SNAPSHOT_MAGIC
+      || header_p->version != JERRY_SNAPSHOT_VERSION || !snapshot_check_global_flags (header_p->global_flags))
   {
     /* Invalid snapshot format */
     return 0;
@@ -1625,10 +1554,7 @@ jerry_get_literals_from_snapshot (const uint32_t *snapshot_p, /**< input snapsho
   const uint8_t *literal_base_p = snapshot_data_p + header_p->lit_table_offset;
 
   ecma_collection_t *lit_pool_p = ecma_new_collection ();
-  scan_snapshot_functions (snapshot_data_p + header_p->func_offsets[0],
-                           literal_base_p,
-                           lit_pool_p,
-                           literal_base_p);
+  scan_snapshot_functions (snapshot_data_p + header_p->func_offsets[0], literal_base_p, lit_pool_p, literal_base_p);
 
   lit_utf8_size_t literal_count = 0;
   ecma_value_t *buffer_p = lit_pool_p->buffer_p;
@@ -1683,32 +1609,27 @@ jerry_get_literals_from_snapshot (const uint32_t *snapshot_p, /**< input snapsho
   if (is_c_format)
   {
     /* Save literal count. */
-    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p,
-                                              buffer_end_p,
-                                              "jerry_length_t literal_count = ",
-                                              0);
+    lit_buf_p =
+      jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("jerry_length_t literal_count = "));
 
     lit_buf_p = jerry_append_number_to_buffer (lit_buf_p, buffer_end_p, literal_count);
 
     /* Save the array of literals. */
-    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p,
-                                              buffer_end_p,
-                                              ";\n\njerry_char_t *literals[",
-                                              0);
+    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG (";\n\njerry_char_t *literals["));
 
     lit_buf_p = jerry_append_number_to_buffer (lit_buf_p, buffer_end_p, literal_count);
-    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "] =\n{\n", 0);
+    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("] =\n{\n"));
 
     for (lit_utf8_size_t i = 0; i < literal_count; i++)
     {
-      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "  \"", 0);
+      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("  \""));
       ECMA_STRING_TO_UTF8_STRING (literal_array[i], str_buffer_p, str_buffer_size);
       for (lit_utf8_size_t j = 0; j < str_buffer_size; j++)
       {
         uint8_t byte = str_buffer_p[j];
         if (byte < 32 || byte > 127)
         {
-          lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "\\x", 0);
+          lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("\\x"));
           ecma_char_t hex_digit = (ecma_char_t) (byte >> 4);
           *lit_buf_p++ = (lit_utf8_byte_t) ((hex_digit > 9) ? (hex_digit + ('A' - 10)) : (hex_digit + '0'));
           hex_digit = (lit_utf8_byte_t) (byte & 0xf);
@@ -1725,23 +1646,21 @@ jerry_get_literals_from_snapshot (const uint32_t *snapshot_p, /**< input snapsho
       }
 
       ECMA_FINALIZE_UTF8_STRING (str_buffer_p, str_buffer_size);
-      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "\"", 0);
+      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("\""));
 
       if (i < literal_count - 1)
       {
-        lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, ",", 0);
+        lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG (","));
       }
 
-      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "\n", 0);
+      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("\n"));
     }
 
-    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p,
-                                              buffer_end_p,
-                                              "};\n\njerry_length_t literal_sizes[",
-                                              0);
+    lit_buf_p =
+      jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("};\n\njerry_length_t literal_sizes["));
 
     lit_buf_p = jerry_append_number_to_buffer (lit_buf_p, buffer_end_p, literal_count);
-    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "] =\n{\n", 0);
+    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("] =\n{\n"));
   }
 
   /* Save the literal sizes respectively. */
@@ -1751,22 +1670,22 @@ jerry_get_literals_from_snapshot (const uint32_t *snapshot_p, /**< input snapsho
 
     if (is_c_format)
     {
-      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "  ", 0);
+      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("  "));
     }
 
     lit_buf_p = jerry_append_number_to_buffer (lit_buf_p, buffer_end_p, str_size);
-    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, " ", 0);
+    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG (" "));
 
     if (is_c_format)
     {
       /* Show the given string as a comment. */
-      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "/* ", 0);
+      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("/* "));
       lit_buf_p = jerry_append_ecma_string_to_buffer (lit_buf_p, buffer_end_p, literal_array[i]);
-      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, " */", 0);
+      lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG (" */"));
 
       if (i < literal_count - 1)
       {
-        lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, ",", 0);
+        lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG (","));
       }
     }
     else
@@ -1774,12 +1693,12 @@ jerry_get_literals_from_snapshot (const uint32_t *snapshot_p, /**< input snapsho
       lit_buf_p = jerry_append_ecma_string_to_buffer (lit_buf_p, buffer_end_p, literal_array[i]);
     }
 
-    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "\n", 0);
+    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("\n"));
   }
 
   if (is_c_format)
   {
-    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, "};\n", 0);
+    lit_buf_p = jerry_append_chars_to_buffer (lit_buf_p, buffer_end_p, JERRY_ZSTR_ARG ("};\n"));
   }
 
   JMEM_FINALIZE_LOCAL_ARRAY (literal_array);
@@ -1795,3 +1714,7 @@ jerry_get_literals_from_snapshot (const uint32_t *snapshot_p, /**< input snapsho
   return 0;
 #endif /* JERRY_SNAPSHOT_SAVE */
 } /* jerry_get_literals_from_snapshot */
+
+/**
+ * @}
+ */

@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+#include "ecma-arraybuffer-object.h"
 #include "ecma-builtin-helpers.h"
 #include "ecma-builtins.h"
 #include "ecma-conversion.h"
@@ -22,9 +23,9 @@
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-objects.h"
-#include "ecma-arraybuffer-object.h"
-#include "jrt.h"
+
 #include "jrt-libc-includes.h"
+#include "jrt.h"
 
 #if JERRY_BUILTIN_TYPEDARRAY
 
@@ -32,7 +33,7 @@
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-arraybuffer-prototype.inc.h"
-#define BUILTIN_UNDERSCORED_ID arraybuffer_prototype
+#define BUILTIN_UNDERSCORED_ID  arraybuffer_prototype
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -65,7 +66,7 @@ ecma_builtin_arraybuffer_prototype_bytelength_getter (ecma_value_t this_arg) /**
     {
       if (ecma_arraybuffer_is_detached (object_p))
       {
-        return ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_arraybuffer_is_detached));
+        return ecma_raise_type_error (ECMA_ERR_ARRAYBUFFER_IS_DETACHED);
       }
       uint32_t len = ecma_arraybuffer_get_length (object_p);
 
@@ -73,7 +74,7 @@ ecma_builtin_arraybuffer_prototype_bytelength_getter (ecma_value_t this_arg) /**
     }
   }
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not a ArrayBuffer object"));
+  return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_ARRAY_BUFFER_OBJECT);
 } /* ecma_builtin_arraybuffer_prototype_bytelength_getter */
 
 /**
@@ -92,7 +93,7 @@ ecma_builtin_arraybuffer_prototype_object_slice (ecma_value_t this_arg, /**< thi
 {
   if (!ecma_is_value_object (this_arg))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_OBJECT);
   }
 
   ecma_object_t *object_p = ecma_get_object_from_value (this_arg);
@@ -100,7 +101,7 @@ ecma_builtin_arraybuffer_prototype_object_slice (ecma_value_t this_arg, /**< thi
   /* 2. */
   if (!ecma_object_class_is (object_p, ECMA_OBJECT_CLASS_ARRAY_BUFFER))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'this' is not an ArrayBuffer object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_THIS_NOT_ARRAY_BUFFER_OBJECT);
   }
 
   return ecma_builtin_arraybuffer_slice (this_arg, argument_list_p, arguments_number);

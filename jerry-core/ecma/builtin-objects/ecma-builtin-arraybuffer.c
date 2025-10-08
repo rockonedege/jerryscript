@@ -13,14 +13,15 @@
  * limitations under the License.
  */
 
+#include "ecma-arraybuffer-object.h"
 #include "ecma-builtins.h"
+#include "ecma-dataview-object.h"
 #include "ecma-exceptions.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
-#include "ecma-arraybuffer-object.h"
-#include "ecma-dataview-object.h"
 #include "ecma-typedarray-object.h"
+
 #include "jrt.h"
 
 #if JERRY_BUILTIN_TYPEDARRAY
@@ -29,7 +30,7 @@
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-arraybuffer.inc.h"
-#define BUILTIN_UNDERSCORED_ID arraybuffer
+#define BUILTIN_UNDERSCORED_ID  arraybuffer
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -75,7 +76,7 @@ ecma_builtin_arraybuffer_dispatch_call (const ecma_value_t *arguments_list_p, /*
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Constructor ArrayBuffer requires 'new'"));
+  return ecma_raise_type_error (ECMA_ERR_CONSTRUCTOR_ARRAYBUFFER_REQUIRES_NEW);
 } /* ecma_builtin_arraybuffer_dispatch_call */
 
 /**

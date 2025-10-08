@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "jcontext.h"
+#include "ecma-module.h"
 
 #include "ecma-exceptions.h"
 #include "ecma-function-object.h"
@@ -21,8 +21,9 @@
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-lex-env.h"
-#include "ecma-module.h"
 #include "ecma-objects.h"
+
+#include "jcontext.h"
 #include "lit-char-helpers.h"
 #include "vm.h"
 
@@ -104,15 +105,15 @@ ecma_module_set_error_state (ecma_module_t *module_p) /**< module */
 {
   module_p->header.u.cls.u1.module_state = JERRY_MODULE_STATE_ERROR;
 
-  if (JERRY_CONTEXT (module_state_changed_callback_p) != NULL
-      && !jcontext_has_pending_abort ())
+  if (JERRY_CONTEXT (module_state_changed_callback_p) != NULL && !jcontext_has_pending_abort ())
   {
     jerry_value_t exception = jcontext_take_exception ();
 
-    JERRY_CONTEXT (module_state_changed_callback_p) (JERRY_MODULE_STATE_ERROR,
-                                                     ecma_make_object_value (&module_p->header.object),
-                                                     exception,
-                                                     JERRY_CONTEXT (module_state_changed_callback_user_p));
+    JERRY_CONTEXT (module_state_changed_callback_p)
+    (JERRY_MODULE_STATE_ERROR,
+     ecma_make_object_value (&module_p->header.object),
+     exception,
+     JERRY_CONTEXT (module_state_changed_callback_user_p));
     jcontext_raise_exception (exception);
   }
 } /* ecma_module_set_error_state */
@@ -122,7 +123,7 @@ ecma_module_set_error_state (ecma_module_t *module_p) /**< module */
  *
  * @return module pointer
  */
-static inline ecma_module_t * JERRY_ATTR_ALWAYS_INLINE
+static inline ecma_module_t *JERRY_ATTR_ALWAYS_INLINE
 ecma_module_get_from_object (ecma_value_t module_val) /**< module */
 {
   JERRY_ASSERT (ecma_is_value_object (module_val));
@@ -210,8 +211,7 @@ ecma_module_resolve_set_append (ecma_module_resolve_set_t *set_p, /**< resolve s
 
   while (true)
   {
-    if (current_p->module_p == module_p
-        && ecma_compare_ecma_strings (current_p->name_p, export_name_p))
+    if (current_p->module_p == module_p && ecma_compare_ecma_strings (current_p->name_p, export_name_p))
     {
       return false;
     }
@@ -282,7 +282,7 @@ ecma_module_resolve_throw (ecma_module_resolve_result_t *resolve_result_p, /**< 
   JERRY_UNUSED (resolve_result_p);
   JERRY_UNUSED (name_p);
 
-  return ecma_raise_syntax_error (NULL);
+  return ecma_raise_syntax_error (ECMA_ERR_EMPTY);
 #endif /* !JERRY_ERROR_MESSAGES */
 } /* ecma_module_resolve_throw */
 
@@ -339,16 +339,14 @@ ecma_module_resolve_import (ecma_module_resolve_result_t *resolve_result_p, /**<
   {
     JERRY_ASSERT (import_node_p != NULL);
 
-    for (ecma_module_names_t *import_names_p = import_node_p->module_names_p;
-         import_names_p != NULL;
+    for (ecma_module_names_t *import_names_p = import_node_p->module_names_p; import_names_p != NULL;
          import_names_p = import_names_p->next_p)
     {
       if (ecma_compare_ecma_strings (local_name_p, import_names_p->local_name_p))
       {
         ecma_module_t *imported_module_p = ecma_module_get_from_object (import_node_p->u.path_or_module);
 
-        if (ecma_compare_ecma_string_to_magic_id (import_names_p->imex_name_p,
-                                                  LIT_MAGIC_STRING_ASTERIX_CHAR))
+        if (ecma_compare_ecma_string_to_magic_id (import_names_p->imex_name_p, LIT_MAGIC_STRING_ASTERIX_CHAR))
         {
           /* Namespace import. */
           ecma_value_t namespace = ecma_make_object_value (imported_module_p->namespace_object_p);
@@ -401,19 +399,18 @@ ecma_module_resolve_export (ecma_module_t *const module_p, /**< base module */
 
     if (current_module_p->header.u.cls.u2.module_flags & ECMA_MODULE_HAS_NAMESPACE)
     {
-      ecma_property_t *property_p = ecma_find_named_property (current_module_p->namespace_object_p,
-                                                              current_export_name_p);
+      ecma_property_t *property_p =
+        ecma_find_named_property (current_module_p->namespace_object_p, current_export_name_p);
 
       if (property_p != NULL)
       {
         ecma_property_value_t *property_value_p = ECMA_PROPERTY_VALUE_PTR (property_p);
 
-        JERRY_ASSERT ((!(*property_p & ECMA_PROPERTY_FLAG_DATA)
-                       && !(property_value_p->value & ECMA_MODULE_NAMESPACE_RESULT_FLAG))
-                      || ((*property_p & ECMA_PROPERTY_FLAG_DATA)
-                          && ecma_is_value_object (property_value_p->value)
-                          && ecma_object_class_is (ecma_get_object_from_value (property_value_p->value),
-                                                   ECMA_OBJECT_CLASS_MODULE_NAMESPACE)));
+        JERRY_ASSERT (
+          (!(*property_p & ECMA_PROPERTY_FLAG_DATA) && !(property_value_p->value & ECMA_MODULE_NAMESPACE_RESULT_FLAG))
+          || ((*property_p & ECMA_PROPERTY_FLAG_DATA) && ecma_is_value_object (property_value_p->value)
+              && ecma_object_class_is (ecma_get_object_from_value (property_value_p->value),
+                                       ECMA_OBJECT_CLASS_MODULE_NAMESPACE)));
 
         if (!ecma_module_resolve_update (resolve_result_p, property_value_p->value))
         {
@@ -432,8 +429,8 @@ ecma_module_resolve_export (ecma_module_t *const module_p, /**< base module */
       {
         if (ecma_compare_ecma_strings (current_export_name_p, export_names_p->imex_name_p))
         {
-          ecma_property_t *property_p = ecma_find_named_property (current_module_p->scope_p,
-                                                                  export_names_p->local_name_p);
+          ecma_property_t *property_p =
+            ecma_find_named_property (current_module_p->scope_p, export_names_p->local_name_p);
 
           if (property_p != NULL)
           {
@@ -473,8 +470,7 @@ ecma_module_resolve_export (ecma_module_t *const module_p, /**< base module */
           {
             ecma_module_t *target_module_p = ecma_module_get_from_object (*indirect_export_p->u.module_object_p);
 
-            if (ecma_compare_ecma_string_to_magic_id (export_names_p->local_name_p,
-                                                      LIT_MAGIC_STRING_ASTERIX_CHAR))
+            if (ecma_compare_ecma_string_to_magic_id (export_names_p->local_name_p, LIT_MAGIC_STRING_ASTERIX_CHAR))
             {
               /* Namespace export. */
               ecma_value_t namespace = ecma_make_object_value (target_module_p->namespace_object_p);
@@ -527,8 +523,7 @@ ecma_module_resolve_export (ecma_module_t *const module_p, /**< base module */
 
 next_iteration:
     current_set_p = current_set_p->next_p;
-  }
-  while (current_set_p != NULL);
+  } while (current_set_p != NULL);
 
 exit:
   ecma_module_resolve_set_cleanup (resolve_set_p);
@@ -537,7 +532,7 @@ exit:
 /**
  * Evaluates an EcmaScript module.
  *
- * @return ECMA_VALUE_ERROR - if an error occured
+ * @return ECMA_VALUE_ERROR - if an error occurred
  *         ECMA_VALUE_EMPTY - otherwise
  */
 ecma_value_t
@@ -545,7 +540,7 @@ ecma_module_evaluate (ecma_module_t *module_p) /**< module */
 {
   if (module_p->header.u.cls.u1.module_state == JERRY_MODULE_STATE_ERROR)
   {
-    return ecma_raise_range_error (ECMA_ERR_MSG ("Module is in error state"));
+    return ecma_raise_range_error (ECMA_ERR_MODULE_IS_IN_ERROR_STATE);
   }
 
   if (module_p->header.u.cls.u1.module_state >= JERRY_MODULE_STATE_EVALUATING)
@@ -568,9 +563,9 @@ ecma_module_evaluate (ecma_module_t *module_p) /**< module */
     {
       ret_value = module_p->u.callback (ecma_make_object_value (&module_p->header.object));
 
-      if (JERRY_UNLIKELY (ecma_is_value_error_reference (ret_value)))
+      if (JERRY_UNLIKELY (ecma_is_value_exception (ret_value)))
       {
-        ecma_raise_error_from_error_reference (ret_value);
+        ecma_throw_exception (ret_value);
         ret_value = ECMA_VALUE_ERROR;
       }
     }
@@ -586,10 +581,11 @@ ecma_module_evaluate (ecma_module_t *module_p) /**< module */
 
     if (JERRY_CONTEXT (module_state_changed_callback_p) != NULL)
     {
-      JERRY_CONTEXT (module_state_changed_callback_p) (JERRY_MODULE_STATE_EVALUATED,
-                                                       ecma_make_object_value (&module_p->header.object),
-                                                       ret_value,
-                                                       JERRY_CONTEXT (module_state_changed_callback_user_p));
+      JERRY_CONTEXT (module_state_changed_callback_p)
+      (JERRY_MODULE_STATE_EVALUATED,
+       ecma_make_object_value (&module_p->header.object),
+       ret_value,
+       JERRY_CONTEXT (module_state_changed_callback_user_p));
     }
   }
   else
@@ -610,7 +606,7 @@ ecma_module_evaluate (ecma_module_t *module_p) /**< module */
  * Resolves an export and adds it to the modules namespace object, if the export name is not yet handled.
  * Note: See 15.2.1.16.2 and 15.2.1.18
  *
- * @return ECMA_VALUE_ERROR - if an error occured
+ * @return ECMA_VALUE_ERROR - if an error occurred
  *         ECMA_VALUE_EMPTY - otherwise
  */
 static ecma_value_t
@@ -670,7 +666,7 @@ ecma_module_heap_sort_shift_down (ecma_value_t *buffer_p, /**< array of items */
   while (true)
   {
     uint32_t highest_index = item_index;
-    uint32_t current_index = item_index * 2 + 2;
+    uint32_t current_index = (item_index << 1) + 2;
 
     if (current_index >= item_count)
     {
@@ -713,7 +709,7 @@ ecma_module_heap_sort_shift_down (ecma_value_t *buffer_p, /**< array of items */
  * Creates a namespace object for a module.
  * Note: See 15.2.1.18
  *
- * @return ECMA_VALUE_ERROR - if an error occured
+ * @return ECMA_VALUE_ERROR - if an error occurred
  *         ECMA_VALUE_EMPTY - otherwise
  */
 static ecma_value_t
@@ -746,8 +742,7 @@ ecma_module_create_namespace_object (ecma_module_t *module_p) /**< module */
 #if JERRY_PROPERTY_HASHMAP
       if (prop_iter_cp != JMEM_CP_NULL)
       {
-        ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t,
-                                                                         prop_iter_cp);
+        ecma_property_header_t *prop_iter_p = ECMA_GET_NON_NULL_POINTER (ecma_property_header_t, prop_iter_cp);
         if (prop_iter_p->types[0] == ECMA_PROPERTY_TYPE_HASHMAP)
         {
           prop_iter_cp = prop_iter_p->next_property_cp;
@@ -802,8 +797,7 @@ ecma_module_create_namespace_object (ecma_module_t *module_p) /**< module */
           }
 
           export_names_p = export_names_p->next_p;
-        }
-        while (export_names_p != NULL);
+        } while (export_names_p != NULL);
       }
 
       ecma_module_node_t *indirect_export_p = current_module_p->indirect_exports_p;
@@ -848,8 +842,7 @@ ecma_module_create_namespace_object (ecma_module_t *module_p) /**< module */
     }
 
     current_set_p = current_set_p->next_p;
-  }
-  while (current_set_p != NULL);
+  } while (current_set_p != NULL);
 
   ecma_value_t *buffer_p = properties_p->buffer_p;
   uint32_t item_count = properties_p->item_count;
@@ -863,8 +856,7 @@ ecma_module_create_namespace_object (ecma_module_t *module_p) /**< module */
     {
       end -= 2;
       ecma_module_heap_sort_shift_down (buffer_p, item_count, end);
-    }
-    while (end > 0);
+    } while (end > 0);
 
     end = item_count - 2;
 
@@ -880,8 +872,7 @@ ecma_module_create_namespace_object (ecma_module_t *module_p) /**< module */
 
       ecma_module_heap_sort_shift_down (buffer_p, end, 0);
       end -= 2;
-    }
-    while (end > 0);
+    } while (end > 0);
   }
 
   ecma_value_t *buffer_end_p = properties_p->buffer_p + item_count;
@@ -925,7 +916,7 @@ exit:
 /**
  * Connects imported values to the current module scope.
  *
- * @return ECMA_VALUE_ERROR - if an error occured
+ * @return ECMA_VALUE_ERROR - if an error occurred
  *         ECMA_VALUE_EMPTY - otherwise
  */
 static ecma_value_t
@@ -941,36 +932,15 @@ ecma_module_connect_imports (ecma_module_t *module_p)
   {
     ecma_module_names_t *import_names_p = import_node_p->module_names_p;
 
+    JERRY_ASSERT (local_env_p->type_flags_refs & ECMA_OBJECT_FLAG_BLOCK);
+
     while (import_names_p != NULL)
     {
-      ecma_object_t *lex_env_p = local_env_p;
-      ecma_property_t *binding_p = NULL;
-
-      if (lex_env_p->type_flags_refs & ECMA_OBJECT_FLAG_BLOCK)
-      {
-        binding_p = ecma_find_named_property (lex_env_p, import_names_p->local_name_p);
-
-        JERRY_ASSERT (lex_env_p->u2.outer_reference_cp != JMEM_CP_NULL);
-        lex_env_p = ECMA_GET_NON_NULL_POINTER (ecma_object_t, lex_env_p->u2.outer_reference_cp);
-      }
+      ecma_property_t *binding_p = ecma_find_named_property (local_env_p, import_names_p->local_name_p);
 
       if (binding_p != NULL)
       {
-        return ecma_raise_syntax_error (ECMA_ERR_MSG ("Imported binding shadows local variable"));
-      }
-
-      ecma_value_t status = ecma_op_has_binding (lex_env_p, import_names_p->local_name_p);
-
-#if JERRY_BUILTIN_PROXY
-      if (ECMA_IS_VALUE_ERROR (status))
-      {
-        return status;
-      }
-#endif /* JERRY_BUILTIN_PROXY */
-
-      if (ecma_is_value_true (status))
-      {
-        return ecma_raise_syntax_error (ECMA_ERR_MSG ("Imported binding shadows local variable"));
+        return ecma_raise_syntax_error (ECMA_ERR_IMPORTED_BINDING_SHADOWS_LOCAL_VARIABLE);
       }
 
       import_names_p = import_names_p->next_p;
@@ -989,15 +959,12 @@ ecma_module_connect_imports (ecma_module_t *module_p)
 
     while (import_names_p != NULL)
     {
-      if (ecma_compare_ecma_string_to_magic_id (import_names_p->imex_name_p,
-                                                LIT_MAGIC_STRING_ASTERIX_CHAR))
+      if (ecma_compare_ecma_string_to_magic_id (import_names_p->imex_name_p, LIT_MAGIC_STRING_ASTERIX_CHAR))
       {
         /* Namespace import. */
         ecma_property_value_t *value_p;
-        value_p = ecma_create_named_data_property (module_p->scope_p,
-                                                   import_names_p->local_name_p,
-                                                   ECMA_PROPERTY_FIXED,
-                                                   NULL);
+        value_p =
+          ecma_create_named_data_property (module_p->scope_p, import_names_p->local_name_p, ECMA_PROPERTY_FIXED, NULL);
         value_p->value = ecma_make_object_value (imported_module_p->namespace_object_p);
       }
       else
@@ -1021,9 +988,7 @@ ecma_module_connect_imports (ecma_module_t *module_p)
         }
         else
         {
-          ecma_create_named_reference_property (module_p->scope_p,
-                                                import_names_p->local_name_p,
-                                                resolve_result.result);
+          ecma_create_named_reference_property (module_p->scope_p, import_names_p->local_name_p, resolve_result.result);
         }
       }
 
@@ -1043,7 +1008,7 @@ ecma_module_connect_imports (ecma_module_t *module_p)
  * Initialize the current module by creating the local binding for the imported variables
  * and verifying indirect exports.
  *
- * @return ECMA_VALUE_ERROR - if an error occured
+ * @return ECMA_VALUE_ERROR - if an error occurred
  *         ECMA_VALUE_EMPTY - otherwise
  */
 ecma_value_t
@@ -1108,17 +1073,17 @@ typedef struct ecma_module_stack_item_t
 /**
  * Link module dependencies
  *
- * @return ECMA_VALUE_ERROR - if an error occured
+ * @return ECMA_VALUE_ERROR - if an error occurred
  *         ECMA_VALUE_UNDEFINED - otherwise
  */
 ecma_value_t
 ecma_module_link (ecma_module_t *module_p, /**< root module */
-                  jerry_module_resolve_callback_t callback, /**< resolve module callback */
+                  jerry_module_resolve_cb_t callback, /**< resolve module callback */
                   void *user_p) /**< pointer passed to the resolve callback */
 {
   if (module_p->header.u.cls.u1.module_state != JERRY_MODULE_STATE_UNLINKED)
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Module must be in unlinked state"));
+    return ecma_raise_type_error (ECMA_ERR_MODULE_MUST_BE_IN_UNLINKED_STATE);
   }
 
   module_p->header.u.cls.u1.module_state = JERRY_MODULE_STATE_LINKING;
@@ -1155,9 +1120,9 @@ restart:
 
       ecma_value_t resolve_result = callback (node_p->u.path_or_module, module_val, user_p);
 
-      if (JERRY_UNLIKELY (ecma_is_value_error_reference (resolve_result)))
+      if (JERRY_UNLIKELY (ecma_is_value_exception (resolve_result)))
       {
-        ecma_raise_error_from_error_reference (resolve_result);
+        ecma_throw_exception (resolve_result);
         goto error;
       }
 
@@ -1166,7 +1131,7 @@ restart:
       if (resolved_module_p == NULL)
       {
         ecma_free_value (resolve_result);
-        ecma_raise_type_error (ECMA_ERR_MSG ("Callback result must be a module"));
+        ecma_raise_type_error (ECMA_ERR_CALLBACK_RESULT_NOT_MODULE);
         goto error;
       }
 
@@ -1181,7 +1146,7 @@ restart:
 
     if (resolved_module_p->header.u.cls.u1.module_state == JERRY_MODULE_STATE_ERROR)
     {
-      ecma_raise_type_error (ECMA_ERR_MSG ("Cannot link to a module which is in error state"));
+      ecma_raise_type_error (ECMA_ERR_LINK_TO_MODULE_IN_ERROR_STATE);
       goto error;
     }
 
@@ -1253,9 +1218,8 @@ restart:
 
     if (current_module_p->namespace_object_p == NULL)
     {
-      ecma_object_t *namespace_object_p = ecma_create_object (NULL,
-                                                              sizeof (ecma_extended_object_t),
-                                                              ECMA_OBJECT_TYPE_CLASS);
+      ecma_object_t *namespace_object_p =
+        ecma_create_object (NULL, sizeof (ecma_extended_object_t), ECMA_OBJECT_TYPE_CLASS);
 
       namespace_object_p->type_flags_refs &= (ecma_object_descriptor_t) ~ECMA_OBJECT_FLAG_EXTENSIBLE;
 
@@ -1297,8 +1261,7 @@ restart:
       }
 
       iterator_p = iterator_p->prev_p;
-    }
-    while (iterator_p != end_p);
+    } while (iterator_p != end_p);
 
     iterator_p = last_p;
 
@@ -1313,8 +1276,7 @@ restart:
       }
 
       iterator_p = iterator_p->prev_p;
-    }
-    while (iterator_p != end_p);
+    } while (iterator_p != end_p);
 
     do
     {
@@ -1325,16 +1287,16 @@ restart:
 
       if (JERRY_CONTEXT (module_state_changed_callback_p) != NULL)
       {
-        JERRY_CONTEXT (module_state_changed_callback_p) (JERRY_MODULE_STATE_LINKED,
-                                                         ecma_make_object_value (&last_p->module_p->header.object),
-                                                         ECMA_VALUE_UNDEFINED,
-                                                         JERRY_CONTEXT (module_state_changed_callback_user_p));
+        JERRY_CONTEXT (module_state_changed_callback_p)
+        (JERRY_MODULE_STATE_LINKED,
+         ecma_make_object_value (&last_p->module_p->header.object),
+         ECMA_VALUE_UNDEFINED,
+         JERRY_CONTEXT (module_state_changed_callback_user_p));
       }
 
       jmem_heap_free_block (last_p, sizeof (ecma_module_stack_item_t));
       last_p = prev_p;
-    }
-    while (last_p != end_p);
+    } while (last_p != end_p);
 
     if (current_p == NULL)
     {
@@ -1357,8 +1319,7 @@ error:
 
     jmem_heap_free_block (last_p, sizeof (ecma_module_stack_item_t));
     last_p = prev_p;
-  }
-  while (last_p != NULL);
+  } while (last_p != NULL);
 
   return ECMA_VALUE_ERROR;
 } /* ecma_module_link */
@@ -1391,14 +1352,13 @@ ecma_module_import (ecma_value_t specifier, /**< module specifier */
                                                      JERRY_CONTEXT (module_import_callback_user_p));
   ecma_deref_ecma_string (specifier_p);
 
-  if (JERRY_UNLIKELY (ecma_is_value_error_reference (result)))
+  if (JERRY_UNLIKELY (ecma_is_value_exception (result)))
   {
-    ecma_raise_error_from_error_reference (result);
+    ecma_throw_exception (result);
     goto error;
   }
 
-  if (ecma_is_value_object (result)
-      && ecma_is_promise (ecma_get_object_from_value (result)))
+  if (ecma_is_value_object (result) && ecma_is_promise (ecma_get_object_from_value (result)))
   {
     return result;
   }
@@ -1423,7 +1383,7 @@ ecma_module_import (ecma_value_t specifier, /**< module specifier */
   return result;
 
 error_module_instantiate:
-  ecma_raise_range_error (ECMA_ERR_MSG ("Module cannot be instantiated"));
+  ecma_raise_range_error (ECMA_ERR_MODULE_CANNOT_BE_INSTANTIATED);
 
 error:
   if (jcontext_has_pending_abort ())

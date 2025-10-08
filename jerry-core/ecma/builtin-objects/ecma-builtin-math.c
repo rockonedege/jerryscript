@@ -22,15 +22,15 @@
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
-#include "ecma-number-arithmetic.h"
-#include "ecma-objects.h"
 #include "ecma-objects-general.h"
-#include "jrt.h"
-#include "jrt-libc-includes.h"
+#include "ecma-objects.h"
 
-#if defined (_WIN32)
+#include "jrt-libc-includes.h"
+#include "jrt.h"
+
+#if defined(_WIN32)
 #include <intrin.h>
-#endif
+#endif /* defined(_WIN32) */
 
 #if JERRY_BUILTIN_MATH
 
@@ -62,7 +62,6 @@ enum
   ECMA_MATH_OBJECT_SIN, /* ECMA-262 v5, 15.8.2.16 */
   ECMA_MATH_OBJECT_SQRT, /* ECMA-262 v5, 15.8.2.17 */
   ECMA_MATH_OBJECT_TAN, /* ECMA-262 v5, 15.8.2.18 */
-#if JERRY_ESNEXT
   ECMA_MATH_OBJECT_ACOSH, /* ECMA-262 v6, 20.2.2.3  */
   ECMA_MATH_OBJECT_ASINH, /* ECMA-262 v6, 20.2.2.5  */
   ECMA_MATH_OBJECT_ATANH, /* ECMA-262 v6, 20.2.2.7  */
@@ -78,22 +77,19 @@ enum
   ECMA_MATH_OBJECT_SINH, /* ECMA-262 v6, 20.2.2.31  */
   ECMA_MATH_OBJECT_TANH, /* ECMA-262 v6, 20.2.2.34  */
   ECMA_MATH_OBJECT_TRUNC, /* ECMA-262 v6, 20.2.2.35  */
-#endif /* JERRY_ESNEXT */
-  ECMA_MATH_OBJECT_ATAN2, /* ECMA-262 v5, 15.8.2.5 */ /* first routine with 2 arguments */
-#if JERRY_ESNEXT
+  ECMA_MATH_OBJECT_ATAN2,
+  /* ECMA-262 v5, 15.8.2.5 */ /* first routine with 2 arguments */
   ECMA_MATH_OBJECT_IMUL, /* ECMA-262 v6, 20.2.2.19  */
-#endif /* JERRY_ESNEXT */
-  ECMA_MATH_OBJECT_POW, /* ECMA-262 v5, 15.8.2.13 */ /* last routine with 1 or 2 arguments*/
+  ECMA_MATH_OBJECT_POW,
+  /* ECMA-262 v5, 15.8.2.13 */ /* last routine with 1 or 2 arguments*/
   ECMA_MATH_OBJECT_MAX, /* ECMA-262 v5, 15.8.2.11 */
   ECMA_MATH_OBJECT_MIN, /* ECMA-262 v5, 15.8.2.12 */
-#if JERRY_ESNEXT
   ECMA_MATH_OBJECT_HYPOT, /* ECMA-262 v6, 20.2.2.18  */
-#endif /* JERRY_ESNEXT */
   ECMA_MATH_OBJECT_RANDOM, /* ECMA-262 v5, 15.8.2.14 */
 };
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-math.inc.h"
-#define BUILTIN_UNDERSCORED_ID math
+#define BUILTIN_UNDERSCORED_ID  math
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -122,37 +118,26 @@ ecma_builtin_math_object_max_min (bool is_max, /**< 'max' or 'min' operation */
                                   uint32_t args_number) /**< number of arguments */
 {
   ecma_number_t result_num = ecma_number_make_infinity (is_max);
-  bool nan_found = false;
 
   while (args_number > 0)
   {
     ecma_number_t arg_num;
+    ecma_value_t value = ecma_op_to_number (*arg, &arg_num);
 
-    if (ecma_is_value_number (*arg))
+    if (ECMA_IS_VALUE_ERROR (value))
     {
-      arg_num = ecma_get_number_from_value (*arg);
-    }
-    else
-    {
-      ecma_value_t value = ecma_op_to_number (*arg, &arg_num);
-
-      if (ECMA_IS_VALUE_ERROR (value))
-      {
-        return value;
-      }
+      return value;
     }
 
     arg++;
     args_number--;
 
-    if (JERRY_UNLIKELY (nan_found || ecma_number_is_nan (arg_num)))
+    if (ecma_number_is_nan (arg_num))
     {
-      nan_found = true;
-      continue;
+      result_num = arg_num;
     }
 
-    if (ecma_number_is_zero (arg_num)
-        && ecma_number_is_zero (result_num))
+    if (ecma_number_is_zero (arg_num) && ecma_number_is_zero (result_num))
     {
       bool is_negative = ecma_number_is_negative (arg_num);
 
@@ -170,15 +155,9 @@ ecma_builtin_math_object_max_min (bool is_max, /**< 'max' or 'min' operation */
     }
   }
 
-  if (JERRY_UNLIKELY (nan_found))
-  {
-    result_num = ecma_number_make_nan ();
-  }
-
   return ecma_make_number_value (result_num);
 } /* ecma_builtin_math_object_max_min */
 
-#if JERRY_ESNEXT
 /**
  * The Math object's 'hypot' routine
  *
@@ -197,52 +176,35 @@ ecma_builtin_math_object_hypot (const ecma_value_t *arg, /**< arguments list */
     return ecma_make_number_value (0.0);
   }
 
-  bool nan_found = false;
-  bool inf_found = false;
   ecma_number_t result_num = 0;
+  bool inf = false;
 
   while (args_number > 0)
   {
     ecma_number_t arg_num;
-    if (ecma_is_value_number (*arg))
+    ecma_value_t value = ecma_op_to_number (*arg, &arg_num);
+    if (ECMA_IS_VALUE_ERROR (value))
     {
-      arg_num = ecma_get_number_from_value (*arg);
-    }
-    else
-    {
-      ecma_value_t value = ecma_op_to_number (*arg, &arg_num);
-      if (ECMA_IS_VALUE_ERROR (value))
-      {
-        return value;
-      }
+      return value;
     }
 
     arg++;
     args_number--;
 
-    if (JERRY_UNLIKELY (inf_found || ecma_number_is_infinity (arg_num)))
+    if (ecma_number_is_nan (arg_num) && !inf)
     {
-      inf_found = true;
+      result_num = arg_num;
       continue;
     }
 
-    if (JERRY_UNLIKELY (nan_found || ecma_number_is_nan (arg_num)))
+    if (ecma_number_is_infinity (arg_num))
     {
-      nan_found = true;
+      inf = true;
+      result_num = ecma_number_make_infinity (false);
       continue;
     }
 
     result_num += arg_num * arg_num;
-  }
-
-  if (JERRY_UNLIKELY (inf_found))
-  {
-    return ecma_make_number_value (ecma_number_make_infinity (false));
-  }
-
-  if (JERRY_UNLIKELY (nan_found))
-  {
-    return ecma_make_nan_value ();
   }
 
   return ecma_make_number_value (sqrt (result_num));
@@ -301,8 +263,6 @@ ecma_builtin_math_object_sign (ecma_number_t arg)
   return (ecma_number_t) 1.0;
 } /* ecma_builtin_math_object_sign */
 
-#endif /* JERRY_ESNEXT */
-
 /**
  * The Math object's 'random' routine.
  *
@@ -343,23 +303,15 @@ ecma_builtin_math_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wi
 
     if (arguments_number >= 1)
     {
-      if (ecma_is_value_number (arguments_list[0]))
-      {
-        x = ecma_get_number_from_value (arguments_list[0]);
-      }
-      else
-      {
-        ecma_value_t value = ecma_op_to_number (arguments_list[0], &x);
+      ecma_value_t value = ecma_op_to_number (arguments_list[0], &x);
 
-        if (ECMA_IS_VALUE_ERROR (value))
-        {
-          return value;
-        }
+      if (ECMA_IS_VALUE_ERROR (value))
+      {
+        return value;
       }
     }
 
-    if (builtin_routine_id >= ECMA_MATH_OBJECT_ATAN2
-        && arguments_number >= 2)
+    if (builtin_routine_id >= ECMA_MATH_OBJECT_ATAN2 && arguments_number >= 2)
     {
       if (ecma_is_value_number (arguments_list[1]))
       {
@@ -423,7 +375,6 @@ ecma_builtin_math_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wi
         x = DOUBLE_TO_ECMA_NUMBER_T (log (x));
         break;
       }
-#if JERRY_ESNEXT
       case ECMA_MATH_OBJECT_TRUNC:
       {
         x = ecma_builtin_math_object_trunc (x);
@@ -434,37 +385,39 @@ ecma_builtin_math_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wi
         x = ecma_builtin_math_object_sign (x);
         break;
       }
-#endif /* JERRY_ESNEXT */
       case ECMA_MATH_OBJECT_ROUND:
       {
-        if (ecma_number_is_nan (x)
-            || ecma_number_is_zero (x)
-            || ecma_number_is_infinity (x)
-            || fmod (x, 1.0) == 0)
+        if (ecma_number_is_nan (x) || ecma_number_is_zero (x) || ecma_number_is_infinity (x))
         {
-          /* Do nothing. */
+          break;
         }
-        else if (ecma_number_is_negative (x)
-                 && x >= -ECMA_NUMBER_HALF)
-        {
-          x = -ECMA_NUMBER_ZERO;
-        }
-        else
-        {
-          const ecma_number_t up_half = x + ECMA_NUMBER_HALF;
-          const ecma_number_t down_half = x - ECMA_NUMBER_HALF;
-          const ecma_number_t up_rounded = up_half - ecma_op_number_remainder (up_half, ECMA_NUMBER_ONE);
-          const ecma_number_t down_rounded = down_half - ecma_op_number_remainder (down_half, ECMA_NUMBER_ONE);
 
-          if (up_rounded - x <= x - down_rounded)
+        ecma_number_t fraction = fmod (x, ECMA_NUMBER_ONE);
+
+        if (ecma_number_is_zero (fraction))
+        {
+          break;
+        }
+
+        if (ecma_number_is_negative (x))
+        {
+          if (x >= -ECMA_NUMBER_HALF)
           {
-            x = up_rounded;
+            x = -ECMA_NUMBER_ZERO;
+            break;
           }
-          else
+
+          if (fraction < -ECMA_NUMBER_HALF)
           {
-            x = down_rounded;
+            x -= ECMA_NUMBER_HALF;
           }
         }
+        else if (fraction >= ECMA_NUMBER_HALF)
+        {
+          x += ECMA_NUMBER_HALF;
+        }
+
+        x = ecma_number_trunc (x);
         break;
       }
       case ECMA_MATH_OBJECT_SIN:
@@ -492,7 +445,6 @@ ecma_builtin_math_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wi
         x = ecma_number_pow (x, y);
         break;
       }
-#if JERRY_ESNEXT
       case ECMA_MATH_OBJECT_ACOSH:
       {
         x = DOUBLE_TO_ECMA_NUMBER_T (acosh (x));
@@ -551,12 +503,12 @@ ecma_builtin_math_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wi
       case ECMA_MATH_OBJECT_CLZ32:
       {
         uint32_t n = ecma_number_to_uint32 (x);
-#if defined (__GNUC__) || defined (__clang__)
+#if defined(__GNUC__) || defined(__clang__)
         x = n ? __builtin_clz (n) : 32;
-#elif defined (_WIN32)
+#elif defined(_WIN32)
         unsigned long ret;
         x = _BitScanReverse (&ret, n) ? 31 - ret : 32;
-#else
+#else /* !(defined(__GNUC__) || defined(__clang__) || defined(_WIN32)) */
         x = 32;
         for (int i = 31; i >= 0; i--)
         {
@@ -566,7 +518,7 @@ ecma_builtin_math_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wi
             break;
           }
         }
-#endif
+#endif /* defined (__GNUC__) || defined (__clang__) */
         break;
       }
       case ECMA_MATH_OBJECT_FROUND:
@@ -579,7 +531,6 @@ ecma_builtin_math_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wi
         x = (int32_t) (ecma_number_to_uint32 (x) * ecma_number_to_uint32 (y));
         break;
       }
-#endif /* JERRY_ESNEXT */
     }
     return ecma_make_number_value (x);
   } /* if (builtin_routine_id <= ECMA_MATH_OBJECT_POW) */
@@ -591,12 +542,10 @@ ecma_builtin_math_dispatch_routine (uint8_t builtin_routine_id, /**< built-in wi
                                              arguments_number);
   }
 
-#if JERRY_ESNEXT
   if (builtin_routine_id == ECMA_MATH_OBJECT_HYPOT)
   {
     return ecma_builtin_math_object_hypot (arguments_list, arguments_number);
   }
-#endif /* JERRY_ESNEXT */
 
   JERRY_ASSERT (builtin_routine_id == ECMA_MATH_OBJECT_RANDOM);
 

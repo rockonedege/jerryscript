@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required (VERSION 2.8.12)
+cmake_minimum_required (VERSION 3.10)
 project (unit-core C)
 
 if (NOT IS_ABSOLUTE ${FEATURE_PROFILE})
@@ -53,6 +53,7 @@ set(SOURCE_UNIT_TEST_MAIN_MODULES
   test-get-own-property.c
   test-has-property.c
   test-internal-properties.c
+  test-is-eval-code.c
   test-jmem.c
   test-json.c
   test-lit-char-helpers.c
@@ -78,9 +79,10 @@ set(SOURCE_UNIT_TEST_MAIN_MODULES
   test-error-callback.c
   test-regexp.c
   test-regression-3588.c
-  test-resource-name.c
+  test-source-name.c
   test-script-user-value.c
   test-snapshot.c
+  test-source-info.c
   test-special-proxy.c
   test-string-to-number.c
   test-stringbuilder.c
@@ -111,7 +113,7 @@ foreach(SOURCE_UNIT_TEST_MAIN ${SOURCE_UNIT_TEST_MAIN_MODULES})
   target_include_directories(${TARGET_NAME} PRIVATE ${INCLUDE_CORE_PRIVATE})
   set_property(TARGET ${TARGET_NAME} PROPERTY LINK_FLAGS "${LINKER_FLAGS_COMMON}")
   set_property(TARGET ${TARGET_NAME} PROPERTY RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
-  target_link_libraries(${TARGET_NAME} jerry-core jerry-port-default)
+  target_link_libraries(${TARGET_NAME} jerry-core jerry-port)
 
   add_dependencies(unittests-core ${TARGET_NAME})
 endforeach()

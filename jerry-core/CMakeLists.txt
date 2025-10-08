@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required (VERSION 2.8.12)
+cmake_minimum_required (VERSION 3.10)
 set(JERRY_CORE_NAME jerry-core)
 project (${JERRY_CORE_NAME} C)
 
@@ -38,7 +38,7 @@ set(JERRY_SNAPSHOT_EXEC             OFF          CACHE BOOL   "Enable executing 
 set(JERRY_SNAPSHOT_SAVE             OFF          CACHE BOOL   "Enable saving snapshot files?")
 set(JERRY_SYSTEM_ALLOCATOR          OFF          CACHE BOOL   "Enable system allocator?")
 set(JERRY_VALGRIND                  OFF          CACHE BOOL   "Enable Valgrind support?")
-set(JERRY_VM_EXEC_STOP              OFF          CACHE BOOL   "Enable VM execution stop callback?")
+set(JERRY_VM_HALT                   OFF          CACHE BOOL   "Enable VM execution stop callback?")
 set(JERRY_VM_THROW                  OFF          CACHE BOOL   "Enable VM throw callback?")
 set(JERRY_GLOBAL_HEAP_SIZE          "(512)"      CACHE STRING "Size of memory heap, in kilobytes")
 set(JERRY_GC_LIMIT                  "(0)"        CACHE STRING "Heap usage limit to trigger garbage collection")
@@ -98,7 +98,7 @@ message(STATUS "JERRY_SNAPSHOT_EXEC            " ${JERRY_SNAPSHOT_EXEC} ${JERRY_
 message(STATUS "JERRY_SNAPSHOT_SAVE            " ${JERRY_SNAPSHOT_SAVE} ${JERRY_SNAPSHOT_SAVE_MESSAGE})
 message(STATUS "JERRY_SYSTEM_ALLOCATOR         " ${JERRY_SYSTEM_ALLOCATOR})
 message(STATUS "JERRY_VALGRIND                 " ${JERRY_VALGRIND})
-message(STATUS "JERRY_VM_EXEC_STOP             " ${JERRY_VM_EXEC_STOP})
+message(STATUS "JERRY_VM_HALT                  " ${JERRY_VM_HALT})
 message(STATUS "JERRY_VM_THROW                 " ${JERRY_VM_THROW})
 message(STATUS "JERRY_GLOBAL_HEAP_SIZE         " ${JERRY_GLOBAL_HEAP_SIZE})
 message(STATUS "JERRY_GC_LIMIT                 " ${JERRY_GC_LIMIT})
@@ -123,6 +123,13 @@ set(INCLUDE_CORE_PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/parser/regexp"
     "${CMAKE_CURRENT_SOURCE_DIR}/vm")
 
+# Third-party
+# Valgrind
+set(INCLUDE_THIRD_PARTY_VALGRIND "${CMAKE_SOURCE_DIR}/third-party/valgrind")
+if(JERRY_VALGRIND)
+  set(INCLUDE_CORE_PRIVATE ${INCLUDE_CORE_PRIVATE} ${INCLUDE_THIRD_PARTY_VALGRIND})
+endif()
+
 set(INCLUDE_CORE_PUBLIC ${INCLUDE_CORE_PUBLIC} PARENT_SCOPE) # for jerry-port
 set(INCLUDE_CORE_PRIVATE ${INCLUDE_CORE_PRIVATE} PARENT_SCOPE) # for tests/unit-core
 
@@ -131,8 +138,9 @@ set(INCLUDE_CORE_PRIVATE ${INCLUDE_CORE_PRIVATE} PARENT_SCOPE) # for tests/unit-
 set(SOURCE_CORE_FILES
   api/jerry-debugger-transport.c
   api/jerry-debugger.c
+  api/jerry-module.c
   api/jerry-snapshot.c
-  api/jerry.c
+  api/jerryscript.c
   debugger/debugger.c
   ecma/base/ecma-alloc.c
   ecma/base/ecma-gc.c
@@ -160,12 +168,14 @@ set(SOURCE_CORE_FILES
   ecma/builtin-objects/ecma-builtin-array.c
   ecma/builtin-objects/ecma-builtin-arraybuffer-prototype.c
   ecma/builtin-objects/ecma-builtin-arraybuffer.c
+  ecma/builtin-objects/ecma-builtin-async-from-sync-iterator-prototype.c
   ecma/builtin-objects/ecma-builtin-async-function-prototype.c
   ecma/builtin-objects/ecma-builtin-async-function.c
   ecma/builtin-objects/ecma-builtin-async-generator-function.c
   ecma/builtin-objects/ecma-builtin-async-generator-prototype.c
   ecma/builtin-objects/ecma-builtin-async-generator.c
   ecma/builtin-objects/ecma-builtin-async-iterator-prototype.c
+  ecma/builtin-objects/ecma-builtin-atomics.c
   ecma/builtin-objects/ecma-builtin-bigint-prototype.c
   ecma/builtin-objects/ecma-builtin-bigint.c
   ecma/builtin-objects/ecma-builtin-boolean-prototype.c
@@ -265,6 +275,7 @@ set(SOURCE_CORE_FILES
   ecma/operations/ecma-array-object.c
   ecma/operations/ecma-arraybuffer-object.c
   ecma/operations/ecma-async-generator-object.c
+  ecma/operations/ecma-atomics-object.c
   ecma/operations/ecma-big-uint.c
   ecma/operations/ecma-bigint-object.c
   ecma/operations/ecma-bigint.c
@@ -280,7 +291,6 @@ set(SOURCE_CORE_FILES
   ecma/operations/ecma-iterator-object.c
   ecma/operations/ecma-jobqueue.c
   ecma/operations/ecma-lex-env.c
-  ecma/operations/ecma-number-arithmetic.c
   ecma/operations/ecma-number-object.c
   ecma/operations/ecma-objects-general.c
   ecma/operations/ecma-objects.c
@@ -297,6 +307,7 @@ set(SOURCE_CORE_FILES
   jmem/jmem-heap.c
   jmem/jmem-poolman.c
   jrt/jrt-fatals.c
+  jrt/jrt-logging.c
   lit/lit-char-helpers.c
   lit/lit-magic-strings.c
   lit/lit-strings.c
@@ -314,6 +325,7 @@ set(SOURCE_CORE_FILES
   parser/js/js-scanner-ops.c
   parser/js/js-scanner-util.c
   parser/js/js-scanner.c
+  parser/js/parser-errors.c
   parser/regexp/re-bytecode.c
   parser/regexp/re-compiler.c
   parser/regexp/re-parser.c
@@ -338,6 +350,7 @@ if(ENABLE_AMALGAM)
     api/jerry-snapshot.h
     debugger/debugger.h
     ecma/base/ecma-alloc.h
+    ecma/base/ecma-error-messages.inc.h
     ecma/base/ecma-errors.h
     ecma/base/ecma-gc.h
     ecma/base/ecma-globals.h
@@ -356,12 +369,14 @@ if(ENABLE_AMALGAM)
     ecma/builtin-objects/ecma-builtin-array.inc.h
     ecma/builtin-objects/ecma-builtin-arraybuffer-prototype.inc.h
     ecma/builtin-objects/ecma-builtin-arraybuffer.inc.h
+    ecma/builtin-objects/ecma-builtin-async-from-sync-iterator-prototype.inc.h
     ecma/builtin-objects/ecma-builtin-async-function-prototype.inc.h
     ecma/builtin-objects/ecma-builtin-async-function.inc.h
     ecma/builtin-objects/ecma-builtin-async-generator-function.inc.h
     ecma/builtin-objects/ecma-builtin-async-generator-prototype.inc.h
     ecma/builtin-objects/ecma-builtin-async-generator.inc.h
     ecma/builtin-objects/ecma-builtin-async-iterator-prototype.inc.h
+    ecma/builtin-objects/ecma-builtin-atomics.inc.h
     ecma/builtin-objects/ecma-builtin-bigint-prototype.inc.h
     ecma/builtin-objects/ecma-builtin-bigint.inc.h
     ecma/builtin-objects/ecma-builtin-boolean-prototype.inc.h
@@ -440,6 +455,7 @@ if(ENABLE_AMALGAM)
     ecma/operations/ecma-array-object.h
     ecma/operations/ecma-arraybuffer-object.h
     ecma/operations/ecma-async-generator-object.h
+    ecma/operations/ecma-atomics-object.h
     ecma/operations/ecma-big-uint.h
     ecma/operations/ecma-bigint-object.h
     ecma/operations/ecma-bigint.h
@@ -454,7 +470,6 @@ if(ENABLE_AMALGAM)
     ecma/operations/ecma-iterator-object.h
     ecma/operations/ecma-jobqueue.h
     ecma/operations/ecma-lex-env.h
-    ecma/operations/ecma-number-arithmetic.h
     ecma/operations/ecma-number-object.h
     ecma/operations/ecma-objects-general.h
     ecma/operations/ecma-objects.h
@@ -521,11 +536,9 @@ if(ENABLE_AMALGAM)
   add_dependencies(amalgam amalgam-jerry)
 
   set(SOURCE_CORE_FILES ${AMALGAM_CORE_C} ${AMALGAM_CORE_H} ${AMALGAM_CONFIG_H})
+  set(INCLUDE_CORE_PUBLIC PARENT_SCOPE)
+  set(INCLUDE_CORE_PRIVATE PARENT_SCOPE)
 endif()
-
-# Third-party
-# Valgrind
-set(INCLUDE_THIRD_PARTY_VALGRIND "${CMAKE_SOURCE_DIR}/third-party/valgrind")
 
 # build mode specific compile/link flags
 set(DEFINES_JERRY ${DEFINES_JERRY} $<$<NOT:$<CONFIG:Debug>>:JERRY_NDEBUG>)
@@ -631,12 +644,9 @@ jerry_add_define01(JERRY_SYSTEM_ALLOCATOR)
 
 # Valgrind
 jerry_add_define01(JERRY_VALGRIND)
-if(JERRY_VALGRIND)
-  set(INCLUDE_CORE_PRIVATE ${INCLUDE_CORE_PRIVATE} ${INCLUDE_THIRD_PARTY_VALGRIND})
-endif()
 
 # Enable VM execution stop callback
-jerry_add_define01(JERRY_VM_EXEC_STOP)
+jerry_add_define01(JERRY_VM_HALT)
 
 # Enable VM throw callback
 jerry_add_define01(JERRY_VM_THROW)
@@ -737,6 +747,7 @@ add_library(${JERRY_CORE_NAME} ${SOURCE_CORE_FILES})
 target_compile_definitions(${JERRY_CORE_NAME} PUBLIC ${DEFINES_JERRY})
 target_include_directories(${JERRY_CORE_NAME} PUBLIC ${INCLUDE_CORE_PUBLIC})
 target_include_directories(${JERRY_CORE_NAME} PRIVATE ${INCLUDE_CORE_PRIVATE})
+add_dependencies(${JERRY_CORE_NAME} amalgam)
 
 set(JERRY_CORE_PKGCONFIG_REQUIRES)
 set(JERRY_CORE_PKGCONFIG_LIBS)

@@ -13,9 +13,10 @@
  * limitations under the License.
  */
 
+#include "jerryscript.h"
+
 #include "debugger.h"
 #include "jcontext.h"
-#include "jerryscript.h"
 
 /**
  * Checks whether the debugger is connected.
@@ -102,7 +103,7 @@ jerry_debugger_wait_for_client_source (jerry_debugger_wait_for_source_callback_t
                                        void *user_p, /**< user pointer passed to the callback */
                                        jerry_value_t *return_value) /**< [out] parse and run return value */
 {
-  *return_value = jerry_create_undefined ();
+  *return_value = jerry_undefined ();
 
 #if JERRY_DEBUGGER
   if ((JERRY_CONTEXT (debugger_flags) & JERRY_DEBUGGER_CONNECTED)
@@ -145,13 +146,13 @@ jerry_debugger_wait_for_client_source (jerry_debugger_wait_for_source_callback_t
         {
           JERRY_ASSERT (client_source_data_p != NULL);
 
-          jerry_char_t *resource_name_p = (jerry_char_t *) (client_source_data_p + 1);
-          size_t resource_name_size = strlen ((const char *) resource_name_p);
+          jerry_char_t *source_name_p = (jerry_char_t *) (client_source_data_p + 1);
+          size_t source_name_size = strlen ((const char *) source_name_p);
 
-          *return_value = callback_p (resource_name_p,
-                                      resource_name_size,
-                                      resource_name_p + resource_name_size + 1,
-                                      client_source_data_p->uint8_size - resource_name_size - 1,
+          *return_value = callback_p (source_name_p,
+                                      source_name_size,
+                                      source_name_p + source_name_size + 1,
+                                      client_source_data_p->uint8_size - source_name_size - 1,
                                       user_p);
 
           ret_type = JERRY_DEBUGGER_SOURCE_RECEIVED;
@@ -196,7 +197,7 @@ jerry_debugger_send_output (const jerry_char_t *buffer, /**< buffer */
   if (JERRY_CONTEXT (debugger_flags) & JERRY_DEBUGGER_CONNECTED)
   {
     jerry_debugger_send_string (JERRY_DEBUGGER_OUTPUT_RESULT,
-                                JERRY_DEBUGGER_OUTPUT_OK,
+                                JERRY_DEBUGGER_OUTPUT_PRINT,
                                 (const uint8_t *) buffer,
                                 sizeof (uint8_t) * str_size);
   }
@@ -205,26 +206,3 @@ jerry_debugger_send_output (const jerry_char_t *buffer, /**< buffer */
   JERRY_UNUSED (str_size);
 #endif /* JERRY_DEBUGGER */
 } /* jerry_debugger_send_output */
-
-/**
- * Send the log of the program to the debugger client.
- */
-void
-jerry_debugger_send_log (jerry_log_level_t level, /**< level of the diagnostics message */
-                         const jerry_char_t *buffer, /**< buffer */
-                         jerry_size_t str_size) /**< string size */
-{
-#if JERRY_DEBUGGER
-  if (JERRY_CONTEXT (debugger_flags) & JERRY_DEBUGGER_CONNECTED)
-  {
-    jerry_debugger_send_string (JERRY_DEBUGGER_OUTPUT_RESULT,
-                                (uint8_t) (level + 2),
-                                (const uint8_t *) buffer,
-                                sizeof (uint8_t) * str_size);
-  }
-#else /* !JERRY_DEBUGGER */
-  JERRY_UNUSED (level);
-  JERRY_UNUSED (buffer);
-  JERRY_UNUSED (str_size);
-#endif /* JERRY_DEBUGGER */
-} /* jerry_debugger_send_log */

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required (VERSION 2.8.12)
+cmake_minimum_required (VERSION 3.10)
 set(JERRY_EXT_NAME jerry-ext)
 project (${JERRY_EXT_NAME} C)
 
@@ -45,12 +45,13 @@ set(SOURCE_EXT
   debugger/debugger-ws.c
   handle-scope/handle-scope-allocator.c
   handle-scope/handle-scope.c
-  handler/handler-assert.c
-  handler/handler-gc.c
-  handler/handler-print.c
-  handler/handler-register.c
-  handler/handler-resource-name.c
   module/module.c
+  util/handlers.c
+  util/print.c
+  util/properties.c
+  util/repl.c
+  util/sources.c
+  util/test262.c
 )
 
 add_library(${JERRY_EXT_NAME} ${SOURCE_EXT})

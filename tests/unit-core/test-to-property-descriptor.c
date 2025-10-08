@@ -13,8 +13,9 @@
  * limitations under the License.
  */
 
-#include "config.h"
 #include "jerryscript.h"
+
+#include "config.h"
 #include "test-common.h"
 
 static jerry_value_t
@@ -30,8 +31,8 @@ check_attribute (jerry_value_t attribute, /**< attribute to be checked */
                  jerry_value_t object, /**< original object */
                  const char *name_p) /**< name of the attribute */
 {
-  jerry_value_t prop_name = jerry_create_string_from_utf8 ((const jerry_char_t *) name_p);
-  jerry_value_t value = jerry_get_property (object, prop_name);
+  jerry_value_t prop_name = jerry_string_sz (name_p);
+  jerry_value_t value = jerry_object_get (object, prop_name);
 
   if (jerry_value_is_undefined (value))
   {
@@ -39,23 +40,23 @@ check_attribute (jerry_value_t attribute, /**< attribute to be checked */
   }
   else
   {
-    jerry_value_t result = jerry_binary_operation (JERRY_BIN_OP_STRICT_EQUAL, attribute, value);
+    jerry_value_t result = jerry_binary_op (JERRY_BIN_OP_STRICT_EQUAL, attribute, value);
     TEST_ASSERT (jerry_value_is_true (result));
-    jerry_release_value (result);
+    jerry_value_free (result);
   }
 
-  jerry_release_value (value);
-  jerry_release_value (prop_name);
+  jerry_value_free (value);
+  jerry_value_free (prop_name);
 } /* check_attribute */
 
 static jerry_property_descriptor_t
 to_property_descriptor (jerry_value_t object /**< object */)
 {
-  jerry_property_descriptor_t prop_desc = jerry_property_descriptor_create ();
+  jerry_property_descriptor_t prop_desc = jerry_property_descriptor ();
 
-  jerry_value_t result = jerry_to_property_descriptor (object, &prop_desc);
+  jerry_value_t result = jerry_property_descriptor_from_object (object, &prop_desc);
   TEST_ASSERT (jerry_value_is_boolean (result) && jerry_value_is_true (result));
-  jerry_release_value (result);
+  jerry_value_free (result);
 
   return prop_desc;
 } /* to_property_descriptor */
@@ -85,7 +86,7 @@ main (void)
   TEST_ASSERT (prop_desc.flags & JERRY_PROP_IS_CONFIGURABLE_DEFINED);
   TEST_ASSERT (prop_desc.flags & JERRY_PROP_IS_CONFIGURABLE);
 
-  jerry_release_value (object);
+  jerry_value_free (object);
   jerry_property_descriptor_free (&prop_desc);
 
   /* Next test. */
@@ -103,7 +104,7 @@ main (void)
   TEST_ASSERT (prop_desc.flags & JERRY_PROP_IS_CONFIGURABLE_DEFINED);
   TEST_ASSERT (prop_desc.flags & JERRY_PROP_IS_CONFIGURABLE);
 
-  jerry_release_value (object);
+  jerry_value_free (object);
   jerry_property_descriptor_free (&prop_desc);
 
   /* Next test. */
@@ -125,7 +126,7 @@ main (void)
   TEST_ASSERT (prop_desc.flags & JERRY_PROP_IS_CONFIGURABLE_DEFINED);
   TEST_ASSERT (prop_desc.flags & JERRY_PROP_IS_CONFIGURABLE);
 
-  jerry_release_value (object);
+  jerry_value_free (object);
   jerry_property_descriptor_free (&prop_desc);
 
   /* Next test. */
@@ -144,7 +145,7 @@ main (void)
   TEST_ASSERT (!(prop_desc.flags & JERRY_PROP_IS_ENUMERABLE));
   TEST_ASSERT (!(prop_desc.flags & JERRY_PROP_IS_CONFIGURABLE_DEFINED));
 
-  jerry_release_value (object);
+  jerry_value_free (object);
   jerry_property_descriptor_free (&prop_desc);
 
   /* Next test. */
@@ -164,23 +165,23 @@ main (void)
   TEST_ASSERT (prop_desc.flags & JERRY_PROP_IS_CONFIGURABLE_DEFINED);
   TEST_ASSERT (!(prop_desc.flags & JERRY_PROP_IS_CONFIGURABLE));
 
-  jerry_release_value (object);
+  jerry_value_free (object);
   jerry_property_descriptor_free (&prop_desc);
 
   /* Next test. */
   source_p = "({ get: function(v) {}, writable:true })";
   object = create_property_descriptor (source_p);
-  jerry_value_t result = jerry_to_property_descriptor (object, &prop_desc);
-  TEST_ASSERT (jerry_value_is_error (result));
-  jerry_release_value (result);
-  jerry_release_value (object);
+  jerry_value_t result = jerry_property_descriptor_from_object (object, &prop_desc);
+  TEST_ASSERT (jerry_value_is_exception (result));
+  jerry_value_free (result);
+  jerry_value_free (object);
 
   /* Next test. */
-  object = jerry_create_null ();
-  result = jerry_to_property_descriptor (object, &prop_desc);
-  TEST_ASSERT (jerry_value_is_error (result));
-  jerry_release_value (result);
-  jerry_release_value (object);
+  object = jerry_null ();
+  result = jerry_property_descriptor_from_object (object, &prop_desc);
+  TEST_ASSERT (jerry_value_is_exception (result));
+  jerry_value_free (result);
+  jerry_value_free (object);
 
   jerry_cleanup ();
   return 0;

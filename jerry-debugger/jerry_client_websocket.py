@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright JS Foundation and other contributors, http://js.foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +18,7 @@ MAX_BUFFER_SIZE = 128
 WEBSOCKET_BINARY_FRAME = 2
 WEBSOCKET_FIN_BIT = 0x80
 
-class WebSocket(object):
+class WebSocket:
     def __init__(self, protocol):
 
         self.data_buffer = b""
@@ -92,7 +90,7 @@ class WebSocket(object):
         """ Send message. """
         message = struct.pack(byte_order + "BBI",
                               WEBSOCKET_BINARY_FRAME | WEBSOCKET_FIN_BIT,
-                              WEBSOCKET_FIN_BIT + struct.unpack(byte_order + "B", packed_data[0])[0],
+                              WEBSOCKET_FIN_BIT + struct.unpack(byte_order + "B", packed_data[0:1])[0],
                               0) + packed_data[1:]
 
         self.__send_data(message)
@@ -110,10 +108,10 @@ class WebSocket(object):
 
         while True:
             if len(self.data_buffer) >= 2:
-                if ord(self.data_buffer[0]) != WEBSOCKET_BINARY_FRAME | WEBSOCKET_FIN_BIT:
+                if self.data_buffer[0] != WEBSOCKET_BINARY_FRAME | WEBSOCKET_FIN_BIT:
                     raise Exception("Unexpected data frame")
 
-                size = ord(self.data_buffer[1])
+                size = self.data_buffer[1]
                 if size == 0 or size >= 126:
                     raise Exception("Unexpected data frame")
 

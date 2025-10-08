@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
+#include "jerryscript.h"
+
+#include "ecma-conversion.h"
+#include "ecma-errors.h"
+#include "ecma-exceptions.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
-#include "ecma-conversion.h"
 #include "ecma-init-finalize.h"
-#include "ecma-exceptions.h"
-#include "jerryscript.h"
-#include "jcontext.h"
 
+#include "jcontext.h"
+#include "lit-globals.h"
 #include "test-common.h"
 
 /**
@@ -47,7 +50,7 @@ main (void)
   TEST_ASSERT (num == 123);
 
   /* 2 */
-  ecma_value_t error = ecma_raise_type_error (ECMA_ERR_MSG ("I am a neat little error message"));
+  ecma_value_t error = ecma_raise_standard_error (JERRY_ERROR_TYPE, ECMA_ERR_INVALID_ARRAY_LENGTH);
 
   result = ecma_op_to_integer (error, &num);
 
@@ -66,7 +69,7 @@ main (void)
   TEST_ASSERT (num == 0);
 
   /* 4 */
-    /* -0 */
+  /* -0 */
   ecma_value_t negative_zero = ecma_make_number_value (-0.0f);
 
   result = ecma_op_to_integer (negative_zero, &num);
@@ -76,7 +79,7 @@ main (void)
   TEST_ASSERT (!ECMA_IS_VALUE_ERROR (result));
   TEST_ASSERT (1.0f / num == ecma_number_make_infinity (true));
 
-    /* +0 */
+  /* +0 */
   ecma_value_t positive_zero = ecma_make_number_value (+0.0f);
 
   result = ecma_op_to_integer (positive_zero, &num);
@@ -86,7 +89,7 @@ main (void)
   TEST_ASSERT (!ECMA_IS_VALUE_ERROR (result));
   TEST_ASSERT (1.0f / num == ecma_number_make_infinity (false));
 
-    /* -infinity */
+  /* -infinity */
   ecma_value_t negative_infinity = ecma_make_number_value (ecma_number_make_infinity (true));
 
   result = ecma_op_to_integer (negative_infinity, &num);
@@ -96,7 +99,7 @@ main (void)
   TEST_ASSERT (!ECMA_IS_VALUE_ERROR (result));
   TEST_ASSERT (num == ecma_number_make_infinity (true));
 
-    /* +infinity */
+  /* +infinity */
   ecma_value_t positive_infinity = ecma_make_number_value (ecma_number_make_infinity (false));
 
   result = ecma_op_to_integer (positive_infinity, &num);
@@ -107,11 +110,11 @@ main (void)
   TEST_ASSERT (num == ecma_number_make_infinity (false));
 
   /* 5 */
-  ecma_value_t floor = ecma_make_number_value (3.001f);
+  ecma_value_t floor_val = ecma_make_number_value (3.001f);
 
-  result = ecma_op_to_integer (floor, &num);
+  result = ecma_op_to_integer (floor_val, &num);
 
-  ecma_free_value (floor);
+  ecma_free_value (floor_val);
 
   TEST_ASSERT (!ECMA_IS_VALUE_ERROR (result));
   TEST_ASSERT (num == 3);

@@ -14,13 +14,14 @@
  */
 
 #include "ecma-builtins.h"
+#include "ecma-dataview-object.h"
 #include "ecma-exceptions.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-shared-arraybuffer-object.h"
-#include "ecma-dataview-object.h"
 #include "ecma-typedarray-object.h"
+
 #include "jrt.h"
 
 #if JERRY_BUILTIN_SHAREDARRAYBUFFER
@@ -29,7 +30,7 @@
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-shared-arraybuffer.inc.h"
-#define BUILTIN_UNDERSCORED_ID shared_arraybuffer
+#define BUILTIN_UNDERSCORED_ID  shared_arraybuffer
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -57,7 +58,7 @@ ecma_builtin_shared_arraybuffer_dispatch_call (const ecma_value_t *arguments_lis
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Constructor SharedArrayBuffer requires 'new'"));
+  return ecma_raise_type_error (ECMA_ERR_CONSTRUCTOR_SHAREDARRAYBUFFER_REQUIRES_NEW);
 } /* ecma_builtin_shared_arraybuffer_dispatch_call */
 
 /**

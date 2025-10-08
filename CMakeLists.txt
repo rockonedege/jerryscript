@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required (VERSION 2.8.12)
+cmake_minimum_required (VERSION 3.10)
 project (Jerry C)
 
 if(NOT DEFINED PYTHON)
@@ -28,20 +28,21 @@ set(PLATFORM "${CMAKE_SYSTEM_NAME}")
 string(TOUPPER "${PLATFORM}" PLATFORM)
 
 # Determining compiler
+if(MSVC)
+  set(USING_MSVC 1)
+endif()
+
 if(CMAKE_C_COMPILER_ID MATCHES "GNU")
   set(USING_GCC 1)
 endif()
 
-if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+# Clang may support for MSVC
+if(NOT USING_MSVC AND CMAKE_C_COMPILER_ID MATCHES "Clang")
   set(USING_CLANG 1)
 endif()
 
 if(CMAKE_C_COMPILER_ID MATCHES "TI")
   set(USING_TI 1)
-endif()
-
-if(CMAKE_C_COMPILER_ID MATCHES "MSVC")
-  set(USING_MSVC 1)
 endif()
 
 # Determining build type
@@ -54,7 +55,7 @@ set(JERRY_CMDLINE           ON  CACHE BOOL "Build jerry command line tool?")
 set(JERRY_CMDLINE_TEST      OFF CACHE BOOL "Build jerry test command line tool?")
 set(JERRY_CMDLINE_SNAPSHOT  OFF CACHE BOOL "Build jerry snapshot command line tool?")
 set(JERRY_LIBFUZZER         OFF CACHE BOOL "Build jerry with libfuzzer support?")
-set(JERRY_PORT_DEFAULT      ON  CACHE BOOL "Build default jerry port implementation?")
+set(JERRY_PORT              ON  CACHE BOOL "Build default jerry port implementation?")
 set(JERRY_EXT               ON  CACHE BOOL "Build jerry-ext?")
 set(JERRY_MATH              OFF CACHE BOOL "Build and use jerry-math?")
 set(UNITTESTS               OFF CACHE BOOL "Build unit tests?")
@@ -67,6 +68,10 @@ set(ENABLE_LTO                ON  CACHE BOOL "Enable LTO build?")
 set(ENABLE_STRIP              ON  CACHE BOOL "Enable stripping all symbols from release binary?")
 set(ENABLE_COMPILE_COMMANDS   ON  CACHE BOOL "Enable generating compile_commands.json?")
 
+if(USING_MSVC)
+  set(ENABLE_STATIC_CRT         OFF CACHE BOOL "Enable MSVC static CRT?")
+endif()
+
 # Option overrides
 if(NOT USING_CLANG)
   set(JERRY_LIBFUZZER OFF)
@@ -75,9 +80,9 @@ if(NOT USING_CLANG)
 endif()
 
 if(JERRY_CMDLINE OR JERRY_CMDLINE_TEST OR JERRY_CMDLINE_SNAPSHOT OR JERRY_LIBFUZZER OR UNITTESTS OR DOCTESTS)
-  set(JERRY_PORT_DEFAULT ON)
+  set(JERRY_PORT ON)
 
-  set(JERRY_PORT_DEFAULT_MESSAGE " (FORCED BY CMDLINE OR LIBFUZZER OR TESTS)")
+  set(JERRY_PORT_MESSAGE " (FORCED BY CMDLINE OR LIBFUZZER OR TESTS)")
 endif()
 
 if(JERRY_CMDLINE OR DOCTESTS)
@@ -132,13 +137,14 @@ message(STATUS "BUILD_SHARED_LIBS              " ${BUILD_SHARED_LIBS})
 message(STATUS "ENABLE_AMALGAM                 " ${ENABLE_AMALGAM} ${ENABLE_AMALGAM_MESSAGE})
 message(STATUS "ENABLE_LTO                     " ${ENABLE_LTO} ${ENABLE_LTO_MESSAGE})
 message(STATUS "ENABLE_STRIP                   " ${ENABLE_STRIP} ${ENABLE_STRIP_MESSAGE})
+message(STATUS "ENABLE_STATIC_CRT              " ${ENABLE_STATIC_CRT})
 message(STATUS "ENABLE_COMPILE_COMMANDS        " ${ENABLE_COMPILE_COMMANDS})
 message(STATUS "JERRY_VERSION                  " ${JERRY_VERSION})
 message(STATUS "JERRY_CMDLINE                  " ${JERRY_CMDLINE} ${JERRY_CMDLINE_MESSAGE})
 message(STATUS "JERRY_CMDLINE_TEST             " ${JERRY_CMDLINE_TEST} ${JERRY_CMDLINE_TEST_MESSAGE})
 message(STATUS "JERRY_CMDLINE_SNAPSHOT         " ${JERRY_CMDLINE_SNAPSHOT} ${JERRY_CMDLINE_SNAPSHOT_MESSAGE})
 message(STATUS "JERRY_LIBFUZZER                " ${JERRY_LIBFUZZER} ${JERRY_LIBFUZZER_MESSAGE})
-message(STATUS "JERRY_PORT_DEFAULT             " ${JERRY_PORT_DEFAULT} ${JERRY_PORT_DEFAULT_MESSAGE})
+message(STATUS "JERRY_PORT                     " ${JERRY_PORT} ${JERRY_PORT_MESSAGE})
 message(STATUS "JERRY_EXT                      " ${JERRY_EXT} ${JERRY_EXT_MESSAGE})
 message(STATUS "JERRY_MATH                     " ${JERRY_MATH} ${JERRY_MATH_MESSAGE})
 message(STATUS "UNITTESTS                      " ${UNITTESTS})
@@ -203,7 +209,11 @@ endif()
 if("${PLATFORM}" STREQUAL "DARWIN")
   jerry_add_link_flags(-lSystem)
   set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> Sqc <TARGET> <LINK_FLAGS> <OBJECTS>")
-  set(CMAKE_C_ARCHIVE_FINISH "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
+  if("${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+    set(CMAKE_C_ARCHIVE_FINISH "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
+  else()
+    set(CMAKE_C_ARCHIVE_FINISH "<CMAKE_RANLIB> <TARGET>")
+  endif()
   set(CMAKE_SHARED_LINKER_FLAGS  "-undefined dynamic_lookup")
 elseif((NOT CYGWIN AND NOT MINGW AND NOT MSYS) AND (USING_GCC OR USING_CLANG))
   jerry_add_link_flags(-Wl,-z,noexecstack)
@@ -241,6 +251,22 @@ if(USING_MSVC)
   jerry_add_link_flags(/OPT:NOREF)
   # Disable MSVC warning 4996 globally because it stops us from using standard C functions.
   jerry_add_compile_flags(/wd4996)
+
+  if(ENABLE_STATIC_CRT)
+    # Replace the existing /MD and /MDd values with /MT and /MTd.
+    set(COMPILER_FLAGS
+      CMAKE_CXX_FLAGS
+      CMAKE_CXX_FLAGS_DEBUG
+      CMAKE_CXX_FLAGS_RELEASE
+      CMAKE_C_FLAGS
+      CMAKE_C_FLAGS_DEBUG
+      CMAKE_C_FLAGS_RELEASE
+    )
+
+    foreach(_flag ${COMPILER_FLAGS})
+      string(REPLACE "/MD" "/MT" ${_flag} "${${_flag}}")
+    endforeach()
+  endif()
 endif()
 
 if(JERRY_LIBFUZZER)
@@ -278,8 +304,8 @@ if(JERRY_EXT)
 endif()
 
 # Jerry's default port implementation
-if(JERRY_PORT_DEFAULT)
-  add_subdirectory(jerry-port/default)
+if(JERRY_PORT)
+  add_subdirectory(jerry-port)
 endif()
 
 # Jerry command line tool

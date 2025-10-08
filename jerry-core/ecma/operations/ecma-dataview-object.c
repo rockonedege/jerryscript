@@ -13,18 +13,20 @@
  * limitations under the License.
  */
 
-#include "jcontext.h"
-#include "ecma-function-object.h"
+#include "ecma-dataview-object.h"
+
 #include "ecma-arraybuffer-object.h"
-#include "ecma-shared-arraybuffer-object.h"
 #include "ecma-bigint.h"
 #include "ecma-builtins.h"
 #include "ecma-exceptions.h"
+#include "ecma-function-object.h"
 #include "ecma-gc.h"
 #include "ecma-helpers.h"
-#include "ecma-dataview-object.h"
-#include "ecma-typedarray-object.h"
 #include "ecma-objects.h"
+#include "ecma-shared-arraybuffer-object.h"
+#include "ecma-typedarray-object.h"
+
+#include "jcontext.h"
 
 #if JERRY_BUILTIN_DATAVIEW
 
@@ -56,7 +58,7 @@ ecma_op_dataview_create (const ecma_value_t *arguments_list_p, /**< arguments li
   /* 2. */
   if (!ecma_is_value_object (buffer))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'buffer' is not an object"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_BUFFER_NOT_OBJECT);
   }
 
   ecma_object_t *buffer_p = ecma_get_object_from_value (buffer);
@@ -64,7 +66,7 @@ ecma_op_dataview_create (const ecma_value_t *arguments_list_p, /**< arguments li
   if (!(ecma_object_class_is (buffer_p, ECMA_OBJECT_CLASS_ARRAY_BUFFER)
         || ecma_object_is_shared_arraybuffer (buffer_p)))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("Argument 'buffer' is not an ArrayBuffer or SharedArrayBuffer"));
+    return ecma_raise_type_error (ECMA_ERR_ARGUMENT_BUFFER_NOT_ARRAY_OR_SHARED_BUFFER);
   }
 
   /* 3. */
@@ -82,7 +84,7 @@ ecma_op_dataview_create (const ecma_value_t *arguments_list_p, /**< arguments li
   /* 4. */
   if (ecma_arraybuffer_is_detached (buffer_p))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_arraybuffer_is_detached));
+    return ecma_raise_type_error (ECMA_ERR_ARRAYBUFFER_IS_DETACHED);
   }
 
   /* 5. */
@@ -91,7 +93,7 @@ ecma_op_dataview_create (const ecma_value_t *arguments_list_p, /**< arguments li
   /* 6. */
   if (offset > buffer_byte_length)
   {
-    return ecma_raise_range_error (ECMA_ERR_MSG ("Start offset is outside the bounds of the buffer"));
+    return ecma_raise_range_error (ECMA_ERR_START_OFFSET_IS_OUTSIDE_THE_BOUNDS_OF_THE_BUFFER);
   }
 
   /* 7. */
@@ -110,7 +112,7 @@ ecma_op_dataview_create (const ecma_value_t *arguments_list_p, /**< arguments li
     /* 8.b */
     if (offset + byte_length_to_index > buffer_byte_length)
     {
-      return ecma_raise_range_error (ECMA_ERR_MSG ("Start offset is outside the bounds of the buffer"));
+      return ecma_raise_range_error (ECMA_ERR_START_OFFSET_IS_OUTSIDE_THE_BOUNDS_OF_THE_BUFFER);
     }
 
     JERRY_ASSERT (byte_length_to_index <= UINT32_MAX);
@@ -123,8 +125,8 @@ ecma_op_dataview_create (const ecma_value_t *arguments_list_p, /**< arguments li
   }
 
   /* 9. */
-  ecma_object_t *prototype_obj_p = ecma_op_get_prototype_from_constructor (JERRY_CONTEXT (current_new_target_p),
-                                                                           ECMA_BUILTIN_ID_DATAVIEW_PROTOTYPE);
+  ecma_object_t *prototype_obj_p =
+    ecma_op_get_prototype_from_constructor (JERRY_CONTEXT (current_new_target_p), ECMA_BUILTIN_ID_DATAVIEW_PROTOTYPE);
   if (JERRY_UNLIKELY (prototype_obj_p == NULL))
   {
     return ECMA_VALUE_ERROR;
@@ -134,14 +136,13 @@ ecma_op_dataview_create (const ecma_value_t *arguments_list_p, /**< arguments li
   if (ecma_arraybuffer_is_detached (buffer_p))
   {
     ecma_deref_object (prototype_obj_p);
-    return ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_arraybuffer_is_detached));
+    return ecma_raise_type_error (ECMA_ERR_ARRAYBUFFER_IS_DETACHED);
   }
 
   /* 9. */
   /* It must happen after 10., because uninitialized object can't be destroyed properly. */
-  ecma_object_t *object_p = ecma_create_object (prototype_obj_p,
-                                                sizeof (ecma_dataview_object_t),
-                                                ECMA_OBJECT_TYPE_CLASS);
+  ecma_object_t *object_p =
+    ecma_create_object (prototype_obj_p, sizeof (ecma_dataview_object_t), ECMA_OBJECT_TYPE_CLASS);
 
   ecma_deref_object (prototype_obj_p);
 
@@ -178,7 +179,7 @@ ecma_op_dataview_get_object (ecma_value_t this_arg) /**< this argument */
     }
   }
 
-  ecma_raise_type_error (ECMA_ERR_MSG ("Expected a DataView object"));
+  ecma_raise_type_error (ECMA_ERR_EXPECTED_A_DATAVIEW_OBJECT);
   return NULL;
 } /* ecma_op_dataview_get_object */
 
@@ -223,7 +224,7 @@ ecma_dataview_swap_order (bool system_is_little_endian, /**< true - if the syste
     for (uint32_t i = 0; i < element_size / 2; i++)
     {
       lit_utf8_byte_t tmp = block_p[i];
-      block_p[i] = block_p[element_size - i -  1];
+      block_p[i] = block_p[element_size - i - 1];
       block_p[element_size - i - 1] = tmp;
     }
   }
@@ -298,10 +299,16 @@ ecma_op_dataview_get_set_view_value (ecma_value_t view, /**< the operation's 'vi
   /* GetViewValue 4., SetViewValue 6. */
   bool is_little_endian = ecma_op_to_boolean (is_little_endian_value);
 
+  if (ECMA_ARRAYBUFFER_LAZY_ALLOC (buffer_p))
+  {
+    ecma_free_value (value_to_set);
+    return ECMA_VALUE_ERROR;
+  }
+
   if (ecma_arraybuffer_is_detached (buffer_p))
   {
     ecma_free_value (value_to_set);
-    return ecma_raise_type_error (ECMA_ERR_MSG (ecma_error_arraybuffer_is_detached));
+    return ecma_raise_type_error (ECMA_ERR_ARRAYBUFFER_IS_DETACHED);
   }
 
   /* GetViewValue 7., SetViewValue 9. */
@@ -317,13 +324,22 @@ ecma_op_dataview_get_set_view_value (ecma_value_t view, /**< the operation's 'vi
   if (get_index + element_size > (ecma_number_t) view_size)
   {
     ecma_free_value (value_to_set);
-    return ecma_raise_range_error (ECMA_ERR_MSG ("Start offset is outside the bounds of the buffer"));
+    return ecma_raise_range_error (ECMA_ERR_START_OFFSET_IS_OUTSIDE_THE_BOUNDS_OF_THE_BUFFER);
+  }
+
+  if (ECMA_ARRAYBUFFER_LAZY_ALLOC (buffer_p))
+  {
+    ecma_free_value (value_to_set);
+    return ECMA_VALUE_ERROR;
+  }
+
+  if (ecma_arraybuffer_is_detached (buffer_p))
+  {
+    ecma_free_value (value_to_set);
+    return ecma_raise_type_error (ECMA_ERR_ARRAYBUFFER_IS_DETACHED);
   }
 
   /* GetViewValue 11., SetViewValue 13. */
-  uint32_t buffer_index = (uint32_t) get_index + view_offset;
-  lit_utf8_byte_t *block_p = ecma_arraybuffer_get_buffer (buffer_p) + buffer_index;
-
   bool system_is_little_endian = ecma_dataview_check_little_endian ();
 
   ecma_typedarray_info_t info;
@@ -335,21 +351,27 @@ ecma_op_dataview_get_set_view_value (ecma_value_t view, /**< the operation's 'vi
   info.array_buffer_p = buffer_p;
 
   /* GetViewValue 12. */
+  uint8_t *block_p = ecma_arraybuffer_get_buffer (buffer_p) + (uint32_t) get_index + view_offset;
+
   if (ecma_is_value_empty (value_to_set))
   {
     JERRY_VLA (lit_utf8_byte_t, swap_block_p, element_size);
     memcpy (swap_block_p, block_p, element_size * sizeof (lit_utf8_byte_t));
     ecma_dataview_swap_order (system_is_little_endian, is_little_endian, element_size, swap_block_p);
-    info.buffer_p = swap_block_p;
-    return ecma_get_typedarray_element (&info, 0);
+
+    ecma_typedarray_getter_fn_t typedarray_getter_cb = ecma_get_typedarray_getter_fn (info.id);
+    return typedarray_getter_cb (swap_block_p);
   }
+
   if (!ecma_number_is_nan (get_index) && get_index <= 0)
   {
     get_index = 0;
   }
+
   /* SetViewValue 14. */
-  info.buffer_p = block_p;
-  ecma_value_t set_element = ecma_set_typedarray_element (&info, value_to_set, 0);
+  ecma_typedarray_setter_fn_t typedarray_setter_cb = ecma_get_typedarray_setter_fn (info.id);
+  ecma_value_t set_element = typedarray_setter_cb (block_p, value_to_set);
+
   ecma_free_value (value_to_set);
 
   if (ECMA_IS_VALUE_ERROR (set_element))

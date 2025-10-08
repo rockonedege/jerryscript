@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cmake_minimum_required (VERSION 2.8.12)
+cmake_minimum_required (VERSION 3.10)
 set(JERRY_MATH_NAME jerry-math)
 project (${JERRY_MATH_NAME} C)
 
@@ -90,6 +90,7 @@ if(USING_GCC OR USING_CLANG)
                PROPERTY COMPILE_FLAGS "${COMPILE_FLAGS_MATH_GCC_CLANG}")
 endif()
 target_include_directories(${JERRY_MATH_NAME} PUBLIC ${INCLUDE_MATH})
+add_dependencies(${JERRY_MATH_NAME} amalgam)
 
 configure_file(libjerry-math.pc.in libjerry-math.pc @ONLY)
 

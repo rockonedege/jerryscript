@@ -15,14 +15,12 @@
 
 #include "ecma-globals.h"
 
-#if JERRY_ESNEXT
-
 #define ECMA_BUILTINS_INTERNAL
 #include "ecma-builtins-internal.h"
 #include "ecma-function-object.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-async-generator-function.inc.h"
-#define BUILTIN_UNDERSCORED_ID async_generator_function
+#define BUILTIN_UNDERSCORED_ID  async_generator_function
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -31,7 +29,7 @@
  * \addtogroup ecmabuiltins
  * @{
  *
- * \addtogroup asyncgenerator ECMA AsyncGeneratorFunction object built-in
+ * \addtogroup asyncgeneratorfunction ECMA AsyncGeneratorFunction object built-in
  * @{
  */
 
@@ -70,5 +68,3 @@ ecma_builtin_async_generator_function_dispatch_construct (const ecma_value_t *ar
  * @}
  * @}
  */
-
-#endif /* JERRY_ESNEXT */

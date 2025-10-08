@@ -25,30 +25,18 @@ typedef enum
 {
 /** @cond doxygen_suppress */
 #define BUILTIN(a, b, c, d, e)
-#define BUILTIN_ROUTINE(builtin_id, \
-                        object_type, \
-                        object_prototype_builtin_id, \
-                        is_extensible, \
-                        lowercase_name) \
-  builtin_id,
+#define BUILTIN_ROUTINE(builtin_id, object_type, object_prototype_builtin_id, is_extensible, lowercase_name) builtin_id,
 #include "ecma-builtins.inc.h"
 #undef BUILTIN
 #undef BUILTIN_ROUTINE
 #define BUILTIN_ROUTINE(a, b, c, d, e)
-#define BUILTIN(builtin_id, \
-                object_type, \
-                object_prototype_builtin_id, \
-                is_extensible, \
-                lowercase_name) \
-  builtin_id,
+#define BUILTIN(builtin_id, object_type, object_prototype_builtin_id, is_extensible, lowercase_name) builtin_id,
 #include "ecma-builtins.inc.h"
 #undef BUILTIN
 #undef BUILTIN_ROUTINE
-/** @endcond */
+  /** @endcond */
   ECMA_BUILTIN_ID__COUNT /**< number of built-in objects */
 } ecma_builtin_id_t;
-
-#if JERRY_ESNEXT
 
 /**
  * Special id for handlers (handlers are not regular built-ins, but
@@ -59,10 +47,7 @@ typedef enum
 /**
  * Number of global symbols
  */
-#define ECMA_BUILTIN_GLOBAL_SYMBOL_COUNT \
-  (LIT_GLOBAL_SYMBOL__LAST - LIT_GLOBAL_SYMBOL__FIRST + 1)
-
-#endif /* JERRY_ESNEXT */
+#define ECMA_BUILTIN_GLOBAL_SYMBOL_COUNT (LIT_GLOBAL_SYMBOL__LAST - LIT_GLOBAL_SYMBOL__FIRST + 1)
 
 /**
  * Construct a routine value
@@ -72,7 +57,7 @@ typedef enum
 /**
  * Get routine length
  */
-#define ECMA_GET_ROUTINE_LENGTH(value) ((uint8_t) ((value) & 0xf))
+#define ECMA_GET_ROUTINE_LENGTH(value) ((uint8_t) ((value) &0xf))
 
 /**
  * Get routine ID
@@ -87,7 +72,7 @@ typedef enum
 /**
  * Get accessor setter ID
  */
-#define ECMA_ACCESSOR_READ_WRITE_GET_SETTER_ID(value) ((uint8_t) ((value) & 0xff))
+#define ECMA_ACCESSOR_READ_WRITE_GET_SETTER_ID(value) ((uint8_t) ((value) &0xff))
 
 /**
  * Get accessor getter ID
@@ -111,9 +96,7 @@ typedef struct
   ecma_value_t this_binding; /**< 'this' binding of this global object */
 #endif /* JERRY_BUILTIN_REALMS */
   jmem_cpointer_t global_env_cp; /**< global lexical environment */
-#if JERRY_ESNEXT
   jmem_cpointer_t global_scope_cp; /**< global lexical scope */
-#endif /* JERRY_ESNEXT */
   jmem_cpointer_t builtin_objects[ECMA_BUILTIN_OBJECTS_COUNT]; /**< pointer to instances of built-in objects */
 } ecma_global_object_t;
 
@@ -121,42 +104,33 @@ typedef struct
 
 ecma_global_object_t *ecma_builtin_create_global_object (void);
 
-ecma_value_t
-ecma_builtin_dispatch_call (ecma_object_t *obj_p, ecma_value_t this_arg_value,
-                            const ecma_value_t *arguments_list_p, uint32_t arguments_list_len);
-ecma_value_t
-ecma_builtin_dispatch_construct (ecma_object_t *obj_p, const ecma_value_t *arguments_list_p,
-                                 uint32_t arguments_list_len);
-ecma_property_t *
-ecma_builtin_routine_try_to_instantiate_property (ecma_object_t *object_p, ecma_string_t *property_name_p);
-ecma_property_t *
-ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, ecma_string_t *property_name_p);
-#if JERRY_ESNEXT
-void
-ecma_builtin_routine_delete_built_in_property (ecma_object_t *object_p, ecma_string_t *property_name_p);
-#endif /* JERRY_ESNEXT */
-void
-ecma_builtin_delete_built_in_property (ecma_object_t *object_p, ecma_string_t *property_name_p);
-void
-ecma_builtin_routine_list_lazy_property_names (ecma_object_t *object_p,
-                                               ecma_collection_t *prop_names_p,
-                                               ecma_property_counter_t *prop_counter_p);
-void
-ecma_builtin_list_lazy_property_names (ecma_object_t *object_p,
-                                       ecma_collection_t *prop_names_p,
-                                       ecma_property_counter_t *prop_counter_p);
-bool
-ecma_builtin_is_global (ecma_object_t *object_p);
-ecma_object_t *
-ecma_builtin_get (ecma_builtin_id_t builtin_id);
-ecma_object_t *
-ecma_builtin_get_global (void);
-bool
-ecma_builtin_function_is_routine (ecma_object_t *func_obj_p);
+ecma_value_t ecma_builtin_dispatch_call (ecma_object_t *obj_p,
+                                         ecma_value_t this_arg_value,
+                                         const ecma_value_t *arguments_list_p,
+                                         uint32_t arguments_list_len);
+ecma_value_t ecma_builtin_dispatch_construct (ecma_object_t *obj_p,
+                                              const ecma_value_t *arguments_list_p,
+                                              uint32_t arguments_list_len);
+ecma_property_t *ecma_builtin_routine_try_to_instantiate_property (ecma_object_t *object_p,
+                                                                   ecma_string_t *property_name_p);
+ecma_property_t *ecma_builtin_try_to_instantiate_property (ecma_object_t *object_p, ecma_string_t *property_name_p);
+void ecma_builtin_routine_delete_built_in_property (ecma_object_t *object_p, ecma_string_t *property_name_p);
+void ecma_builtin_delete_built_in_property (ecma_object_t *object_p, ecma_string_t *property_name_p);
+void ecma_builtin_routine_list_lazy_property_names (ecma_object_t *object_p,
+                                                    ecma_collection_t *prop_names_p,
+                                                    ecma_property_counter_t *prop_counter_p,
+                                                    jerry_property_filter_t filter);
+void ecma_builtin_list_lazy_property_names (ecma_object_t *object_p,
+                                            ecma_collection_t *prop_names_p,
+                                            ecma_property_counter_t *prop_counter_p,
+                                            jerry_property_filter_t filter);
+bool ecma_builtin_is_global (ecma_object_t *object_p);
+ecma_object_t *ecma_builtin_get (ecma_builtin_id_t builtin_id);
+ecma_object_t *ecma_builtin_get_global (void);
+bool ecma_builtin_function_is_routine (ecma_object_t *func_obj_p);
 
 #if JERRY_BUILTIN_REALMS
-ecma_object_t *
-ecma_builtin_get_from_realm (ecma_global_object_t *global_object_p, ecma_builtin_id_t builtin_id);
+ecma_object_t *ecma_builtin_get_from_realm (ecma_global_object_t *global_object_p, ecma_builtin_id_t builtin_id);
 #endif /* JERRY_BUILTIN_REALMS */
 
 #endif /* !ECMA_BUILTINS_H */

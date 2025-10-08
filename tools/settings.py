@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright JS Foundation and other contributors, http://js.foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +19,7 @@ PROJECT_DIR = path.normpath(path.join(TOOLS_DIR, '..'))
 DEBUGGER_TESTS_DIR = path.join(PROJECT_DIR, 'tests/debugger')
 JERRY_TESTS_DIR = path.join(PROJECT_DIR, 'tests/jerry')
 TEST262_TEST_SUITE_DIR = path.join(PROJECT_DIR, 'tests/test262')
+SNAPSHOT_TESTS_SKIPLIST = path.join(PROJECT_DIR, 'tests/snapshot-tests-skiplist.txt')
 
 BUILD_SCRIPT = path.join(TOOLS_DIR, 'build.py')
 CPPCHECK_SCRIPT = path.join(TOOLS_DIR, 'check-cppcheck.sh')
@@ -28,10 +27,10 @@ DEBUGGER_CLIENT_SCRIPT = path.join(PROJECT_DIR, 'jerry-debugger/jerry_client.py'
 DEBUGGER_TEST_RUNNER_SCRIPT = path.join(TOOLS_DIR, 'runners/run-debugger-test.sh')
 DOXYGEN_SCRIPT = path.join(TOOLS_DIR, 'check-doxygen.sh')
 LICENSE_SCRIPT = path.join(TOOLS_DIR, 'check-license.py')
-MAGIC_STRINGS_SCRIPT = path.join(TOOLS_DIR, 'check-magic-strings.sh')
+STRINGS_SCRIPT = path.join(TOOLS_DIR, 'check-strings.sh')
 PYLINT_SCRIPT = path.join(TOOLS_DIR, 'check-pylint.sh')
 SIGNED_OFF_SCRIPT = path.join(TOOLS_DIR, 'check-signed-off.sh')
 TEST_RUNNER_SCRIPT = path.join(TOOLS_DIR, 'runners/run-test-suite.py')
 TEST262_RUNNER_SCRIPT = path.join(TOOLS_DIR, 'runners/run-test-suite-test262.py')
-VERA_SCRIPT = path.join(TOOLS_DIR, 'check-vera.sh')
+FORMAT_SCRIPT = path.join(TOOLS_DIR, 'check-format.py')
 UNITTEST_RUNNER_SCRIPT = path.join(TOOLS_DIR, 'runners/run-unittests.py')

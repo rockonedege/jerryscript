@@ -15,9 +15,10 @@
 
 #include "ecma-builtins.h"
 #include "ecma-exceptions.h"
-#include "jcontext.h"
 #include "ecma-function-object.h"
 #include "ecma-gc.h"
+
+#include "jcontext.h"
 
 #if JERRY_BUILTIN_WEAKREF
 
@@ -25,7 +26,7 @@
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-weakref.inc.h"
-#define BUILTIN_UNDERSCORED_ID weakref
+#define BUILTIN_UNDERSCORED_ID  weakref
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -49,7 +50,7 @@ ecma_builtin_weakref_dispatch_call (const ecma_value_t *arguments_list_p, /**< a
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("Constructor WeakRef requires 'new'."));
+  return ecma_raise_type_error (ECMA_ERR_CONSTRUCTOR_WEAKREF_REQUIRES_NEW);
 } /* ecma_builtin_weakref_dispatch_call */
 
 /**
@@ -63,22 +64,20 @@ ecma_builtin_weakref_dispatch_construct (const ecma_value_t *arguments_list_p, /
 {
   if (arguments_list_len == 0 || !ecma_is_value_object (arguments_list_p[0]))
   {
-    return ecma_raise_type_error (ECMA_ERR_MSG ("WeakRef target must be an object"));
+    return ecma_raise_type_error (ECMA_ERR_WEAKREF_TARGET_MUST_BE_AN_OBJECT);
   }
 
   JERRY_ASSERT (JERRY_CONTEXT (current_new_target_p) != NULL);
 
-  ecma_object_t *proto_p = ecma_op_get_prototype_from_constructor (JERRY_CONTEXT (current_new_target_p),
-                                                                   ECMA_BUILTIN_ID_WEAKREF_PROTOTYPE);
+  ecma_object_t *proto_p =
+    ecma_op_get_prototype_from_constructor (JERRY_CONTEXT (current_new_target_p), ECMA_BUILTIN_ID_WEAKREF_PROTOTYPE);
 
   if (JERRY_UNLIKELY (proto_p == NULL))
   {
     return ECMA_VALUE_ERROR;
   }
 
-  ecma_object_t *object_p  = ecma_create_object (proto_p,
-                                                 sizeof (ecma_extended_object_t),
-                                                 ECMA_OBJECT_TYPE_CLASS);
+  ecma_object_t *object_p = ecma_create_object (proto_p, sizeof (ecma_extended_object_t), ECMA_OBJECT_TYPE_CLASS);
   ecma_deref_object (proto_p);
   ecma_extended_object_t *ext_obj_p = (ecma_extended_object_t *) object_p;
   ext_obj_p->u.cls.type = ECMA_OBJECT_CLASS_WEAKREF;

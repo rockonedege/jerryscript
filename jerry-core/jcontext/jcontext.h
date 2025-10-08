@@ -19,15 +19,17 @@
 #ifndef JCONTEXT_H
 #define JCONTEXT_H
 
-#include "debugger.h"
+#include "jerryscript-debugger-transport.h"
+
 #include "ecma-builtins.h"
 #include "ecma-helpers.h"
 #include "ecma-jobqueue.h"
+
+#include "debugger.h"
 #include "jmem.h"
+#include "js-parser-internal.h"
 #include "re-bytecode.h"
 #include "vm-defines.h"
-#include "jerryscript-debugger-transport.h"
-#include "js-parser-internal.h"
 
 /** \addtogroup context Context
  * @{
@@ -58,11 +60,11 @@
  * to try and reduce clutter from unreachable objects. If the allocated memory can't be reduced below the limit,
  * then the current limit will be incremented by CONFIG_MEM_HEAP_LIMIT.
  */
-#if defined (JERRY_GC_LIMIT) && (JERRY_GC_LIMIT != 0)
+#if defined(JERRY_GC_LIMIT) && (JERRY_GC_LIMIT != 0)
 #define CONFIG_GC_LIMIT JERRY_GC_LIMIT
-#else
+#else /* !(defined(JERRY_GC_LIMIT) && (JERRY_GC_LIMIT != 0)) */
 #define CONFIG_GC_LIMIT (JERRY_MIN (CONFIG_MEM_HEAP_SIZE / 32, CONFIG_MAX_GC_LIMIT))
-#endif
+#endif /* defined(JERRY_GC_LIMIT) && (JERRY_GC_LIMIT != 0) */
 
 /**
  * Amount of newly allocated objects since the last GC run, represented as a fraction of all allocated objects,
@@ -98,13 +100,7 @@ typedef struct jerry_context_data_header
   const jerry_context_data_manager_t *manager_p; /**< manager responsible for deleting this item */
 } jerry_context_data_header_t;
 
-#define JERRY_CONTEXT_DATA_HEADER_USER_DATA(item_p) \
-  ((uint8_t *) (item_p + 1))
-
-/**
- * First non-external member of the jerry context
- */
-#define JERRY_CONTEXT_FIRST_MEMBER global_object_p
+#define JERRY_CONTEXT_DATA_HEADER_USER_DATA(item_p) ((uint8_t *) (item_p + 1))
 
 /**
  * JerryScript context
@@ -122,7 +118,6 @@ struct jerry_context_t
 #endif /* !JERRY_SYSTEM_ALLOCATOR */
 #endif /* JERRY_EXTERNAL_CONTEXT */
 
-  /* Update JERRY_CONTEXT_FIRST_MEMBER if the first non-external member changes */
   ecma_global_object_t *global_object_p; /**< current global object */
   jmem_heap_free_t *jmem_heap_list_skip_p; /**< improves deallocation performance */
   jmem_pools_chunk_t *jmem_free_8_byte_chunk_p; /**< list of free eight byte pool chunks */
@@ -132,39 +127,35 @@ struct jerry_context_t
 #if JERRY_CPOINTER_32_BIT
   jmem_pools_chunk_t *jmem_free_16_byte_chunk_p; /**< list of free sixteen byte pool chunks */
 #endif /* JERRY_CPOINTER_32_BIT */
-  const lit_utf8_byte_t * const *lit_magic_string_ex_array; /**< array of external magic strings */
+  const lit_utf8_byte_t *const *lit_magic_string_ex_array; /**< array of external magic strings */
   const lit_utf8_size_t *lit_magic_string_ex_sizes; /**< external magic string lengths */
   jmem_cpointer_t ecma_gc_objects_cp; /**< List of currently alive objects. */
   jmem_cpointer_t string_list_first_cp; /**< first item of the literal string list */
-#if JERRY_ESNEXT
   jmem_cpointer_t symbol_list_first_cp; /**< first item of the global symbol list */
-#endif /* JERRY_ESNEXT */
   jmem_cpointer_t number_list_first_cp; /**< first item of the literal number list */
 #if JERRY_BUILTIN_BIGINT
   jmem_cpointer_t bigint_list_first_cp; /**< first item of the literal bigint list */
 #endif /* JERRY_BUILTIN_BIGINT */
-#if JERRY_ESNEXT
   jmem_cpointer_t global_symbols_cp[ECMA_BUILTIN_GLOBAL_SYMBOL_COUNT]; /**< global symbols */
-#endif /* JERRY_ESNEXT */
 
 #if JERRY_MODULE_SYSTEM
   ecma_module_t *module_current_p; /**< current module context */
-  jerry_module_state_changed_callback_t module_state_changed_callback_p; /**< callback which is called after the
-                                                                          *   state of a module is changed */
+  jerry_module_state_changed_cb_t module_state_changed_callback_p; /**< callback which is called after the
+                                                                    *   state of a module is changed */
   void *module_state_changed_callback_user_p; /**< user pointer for module_state_changed_callback_p */
-  jerry_module_import_meta_callback_t module_import_meta_callback_p; /**< callback which is called when an
-                                                                      *   import.meta expression of a module
-                                                                      *   is evaluated the first time */
+  jerry_module_import_meta_cb_t module_import_meta_callback_p; /**< callback which is called when an
+                                                                *   import.meta expression of a module
+                                                                *   is evaluated the first time */
   void *module_import_meta_callback_user_p; /**< user pointer for module_import_meta_callback_p */
-  jerry_module_import_callback_t module_import_callback_p; /**< callback for dynamic module import */
+  jerry_module_import_cb_t module_import_callback_p; /**< callback for dynamic module import */
   void *module_import_callback_user_p; /**< user pointer for module_import_callback_p */
 #endif /* JERRY_MODULE_SYSTEM */
 
   vm_frame_ctx_t *vm_top_context_p; /**< top (current) interpreter context */
   jerry_context_data_header_t *context_data_p; /**< linked list of user-provided context-specific pointers */
-  jerry_external_string_free_callback_t external_string_free_callback_p; /**< free callback for external strings */
+  jerry_external_string_free_cb_t external_string_free_callback_p; /**< free callback for external strings */
   void *error_object_created_callback_user_p; /**< user pointer for error_object_update_callback_p */
-  jerry_error_object_created_callback_t error_object_created_callback_p; /**< decorator callback for Error objects */
+  jerry_error_object_created_cb_t error_object_created_callback_p; /**< decorator callback for Error objects */
   size_t ecma_gc_objects_number; /**< number of currently allocated objects */
   size_t ecma_gc_new_objects; /**< number of newly allocated objects since last GC session */
   size_t jmem_heap_allocated_size; /**< size of allocated regions */
@@ -174,6 +165,7 @@ struct jerry_context_t
   uint32_t lit_magic_string_ex_count; /**< external magic strings count */
   uint32_t jerry_init_flags; /**< run-time configuration flags */
   uint32_t status_flags; /**< run-time flags (the top 8 bits are used for passing class parsing options) */
+
 #if (JERRY_GC_MARK_LIMIT != 0)
   uint32_t ecma_gc_mark_recursion_limit; /**< GC mark recursion limit */
 #endif /* (JERRY_GC_MARK_LIMIT != 0) */
@@ -186,32 +178,38 @@ struct jerry_context_t
 #if JERRY_BUILTIN_REGEXP
   uint8_t re_cache_idx; /**< evicted item index when regex cache is full (round-robin) */
 #endif /* JERRY_BUILTIN_REGEXP */
-
-#if JERRY_ESNEXT
   ecma_job_queue_item_t *job_queue_head_p; /**< points to the head item of the job queue */
   ecma_job_queue_item_t *job_queue_tail_p; /**< points to the tail item of the job queue */
 #if JERRY_PROMISE_CALLBACK
   uint32_t promise_callback_filters; /**< reported event types for promise callback */
   void *promise_callback_user_p; /**< user pointer for promise callback */
-  jerry_promise_callback_t promise_callback; /**< user function for tracking Promise object operations */
+  jerry_promise_event_cb_t promise_callback; /**< user function for tracking Promise object operations */
 #endif /* JERRY_PROMISE_CALLBACK */
-#endif /* JERRY_ESNEXT */
 
-#if JERRY_VM_EXEC_STOP
+#if JERRY_BUILTIN_TYPEDARRAY
+  uint32_t arraybuffer_compact_allocation_limit; /**< maximum size of compact allocation */
+  jerry_arraybuffer_allocate_cb_t arraybuffer_allocate_callback; /**< callback for allocating
+                                                                  *   arraybuffer memory */
+  jerry_arraybuffer_free_cb_t arraybuffer_free_callback; /**< callback for freeing arraybuffer memory */
+  void *arraybuffer_allocate_callback_user_p; /**< user pointer passed to arraybuffer_allocate_callback
+                                               *   and arraybuffer_free_callback functions */
+#endif /* JERRY_BUILTIN_TYPEDARRAY */
+
+#if JERRY_VM_HALT
   uint32_t vm_exec_stop_frequency; /**< reset value for vm_exec_stop_counter */
   uint32_t vm_exec_stop_counter; /**< down counter for reducing the calls of vm_exec_stop_cb */
   void *vm_exec_stop_user_p; /**< user pointer for vm_exec_stop_cb */
   ecma_vm_exec_stop_callback_t vm_exec_stop_cb; /**< user function which returns whether the
                                                  *   ECMAScript execution should be stopped */
-#endif /* JERRY_VM_EXEC_STOP */
+#endif /* JERRY_VM_HALT */
 
 #if JERRY_VM_THROW
   void *vm_throw_callback_user_p; /**< user pointer for vm_throw_callback_p */
-  jerry_vm_throw_callback_t vm_throw_callback_p; /**< callback for capturing throws */
+  jerry_throw_cb_t vm_throw_callback_p; /**< callback for capturing throws */
 #endif /* JERRY_VM_THROW */
 
 #if (JERRY_STACK_LIMIT != 0)
-  uintptr_t stack_base;  /**< stack base marker */
+  uintptr_t stack_base; /**< stack base marker */
 #endif /* (JERRY_STACK_LIMIT != 0) */
 
 #if JERRY_DEBUGGER
@@ -226,6 +224,7 @@ struct jerry_context_t
   jmem_cpointer_t debugger_byte_code_free_tail; /**< tail of byte code free linked list */
   uint32_t debugger_flags; /**< debugger flags */
   uint16_t debugger_received_length; /**< length of currently received bytes */
+  uint16_t debugger_eval_chain_index; /**< eval chain index */
   uint8_t debugger_message_delay; /**< call receive message when reaches zero */
   uint8_t debugger_max_send_size; /**< maximum amount of data that can be sent */
   uint8_t debugger_max_receive_size; /**< maximum amount of data that can be received */
@@ -241,14 +240,12 @@ struct jerry_context_t
   ecma_lcache_hash_entry_t lcache[ECMA_LCACHE_HASH_ROWS_COUNT][ECMA_LCACHE_HASH_ROW_LENGTH];
 #endif /* JERRY_LCACHE */
 
-#if JERRY_ESNEXT
   /**
    * Allowed values and it's meaning:
    * * NULL (0x0): the current "new.target" is undefined, that is the execution is inside a normal method.
    * * Any other valid function object pointer: the current "new.target" is valid and it is constructor call.
    */
   ecma_object_t *current_new_target_p;
-#endif /* JERRY_ESNEXT */
 };
 
 #if JERRY_EXTERNAL_CONTEXT
@@ -257,8 +254,8 @@ struct jerry_context_t
  * This part is for JerryScript which uses external context.
  */
 
-#define JERRY_CONTEXT_STRUCT (*jerry_port_get_current_context ())
-#define JERRY_CONTEXT(field) (jerry_port_get_current_context ()->field)
+#define JERRY_CONTEXT_STRUCT (*jerry_port_context_get ())
+#define JERRY_CONTEXT(field) (jerry_port_context_get ()->field)
 
 #if !JERRY_SYSTEM_ALLOCATOR
 
@@ -300,14 +297,14 @@ extern jerry_context_t jerry_global_context;
 #if !JERRY_SYSTEM_ALLOCATOR
 
 /**
-* Size of heap
-*/
-#define JMEM_HEAP_SIZE ((size_t) (CONFIG_MEM_HEAP_SIZE))
+ * Size of heap
+ */
+#define JMEM_HEAP_SIZE            ((size_t) (CONFIG_MEM_HEAP_SIZE))
 
 /**
  * Calculate heap area size, leaving space for a pointer to the free list
  */
-#define JMEM_HEAP_AREA_SIZE (JMEM_HEAP_SIZE - JMEM_ALIGNMENT)
+#define JMEM_HEAP_AREA_SIZE       (JMEM_HEAP_SIZE - JMEM_ALIGNMENT)
 
 struct jmem_heap_t
 {
@@ -329,26 +326,19 @@ extern jmem_heap_t jerry_global_heap;
 
 #endif /* JERRY_EXTERNAL_CONTEXT */
 
-void
-jcontext_set_exception_flag (bool is_exception);
+void jcontext_set_exception_flag (bool is_exception);
 
-void
-jcontext_set_abort_flag (bool is_abort);
+void jcontext_set_abort_flag (bool is_abort);
 
-bool
-jcontext_has_pending_exception (void);
+bool jcontext_has_pending_exception (void);
 
-bool
-jcontext_has_pending_abort (void);
+bool jcontext_has_pending_abort (void);
 
-void
-jcontext_raise_exception (ecma_value_t error);
+void jcontext_raise_exception (ecma_value_t error);
 
-void
-jcontext_release_exception (void);
+void jcontext_release_exception (void);
 
-ecma_value_t
-jcontext_take_exception (void);
+ecma_value_t jcontext_take_exception (void);
 
 /**
  * @}

@@ -17,6 +17,15 @@
 
 #include "jrt-libc-includes.h"
 
+#define LIT_UTF8_SURROGATE_MARKER     0xed /**< utf8 surrogate marker */
+#define LIT_UTF8_HIGH_SURROGATE_MIN   0xa0 /**< utf8 high surrogate minimum */
+#define LIT_UTF8_HIGH_SURROGATE_MAX   0xaf /**< utf8 high surrogate maximum */
+#define LIT_UTF8_LOW_SURROGATE_MIN    0xb0 /**< utf8 low surrogate minimum */
+#define LIT_UTF8_LOW_SURROGATE_MAX    0xbf /**< utf8 low surrogate maximum */
+#define LIT_UTF8_1_BYTE_MAX           0xf4 /**< utf8 one byte max */
+#define LIT_UTF8_2_BYTE_MAX           0x8f /**< utf8 two byte max */
+#define LIT_UTF8_VALID_TWO_BYTE_START 0xc2 /**< utf8 two byte start */
+
 /**
  * Validate utf-8 string
  *
@@ -31,89 +40,64 @@ lit_is_valid_utf8_string (const lit_utf8_byte_t *utf8_buf_p, /**< utf-8 string *
                           lit_utf8_size_t buf_size, /**< string size */
                           bool is_strict) /**< true if surrogate pairs are not allowed */
 {
-  lit_utf8_size_t idx = 0;
+  const unsigned char *end = buf_size + utf8_buf_p;
 
-  bool is_prev_code_point_high_surrogate = false;
-  while (idx < buf_size)
+  const unsigned char *idx = (const unsigned char *) utf8_buf_p;
+
+  while (idx < end)
   {
-    lit_utf8_byte_t c = utf8_buf_p[idx++];
-    if ((c & LIT_UTF8_1_BYTE_MASK) == LIT_UTF8_1_BYTE_MARKER)
+    const uint8_t first_byte = *idx++;
+
+    if (first_byte < LIT_UTF8_EXTRA_BYTE_MARKER)
     {
-      is_prev_code_point_high_surrogate = false;
       continue;
     }
 
-    lit_code_point_t code_point = 0;
-    lit_code_point_t min_code_point = 0;
-    lit_utf8_size_t extra_bytes_count;
-    if ((c & LIT_UTF8_2_BYTE_MASK) == LIT_UTF8_2_BYTE_MARKER)
+    if (first_byte < LIT_UTF8_VALID_TWO_BYTE_START || idx >= end)
     {
-      extra_bytes_count = 1;
-      min_code_point = LIT_UTF8_2_BYTE_CODE_POINT_MIN;
-      code_point = ((uint32_t) (c & LIT_UTF8_LAST_5_BITS_MASK));
-    }
-    else if ((c & LIT_UTF8_3_BYTE_MASK) == LIT_UTF8_3_BYTE_MARKER)
-    {
-      extra_bytes_count = 2;
-      min_code_point = LIT_UTF8_3_BYTE_CODE_POINT_MIN;
-      code_point = ((uint32_t) (c & LIT_UTF8_LAST_4_BITS_MASK));
-    }
-    else if ((c & LIT_UTF8_4_BYTE_MASK) == LIT_UTF8_4_BYTE_MARKER)
-    {
-      extra_bytes_count = 3;
-      min_code_point = LIT_UTF8_4_BYTE_CODE_POINT_MIN;
-      code_point = ((uint32_t) (c & LIT_UTF8_LAST_3_BITS_MASK));
-    }
-    else
-    {
-      /* utf-8 string could not contain 5- and 6-byte sequences. */
       return false;
     }
 
-    if (idx + extra_bytes_count > buf_size)
+    const uint8_t second_byte = *idx++;
+
+    if ((second_byte & LIT_UTF8_EXTRA_BYTE_MASK) != LIT_UTF8_EXTRA_BYTE_MARKER)
     {
-      /* utf-8 string breaks in the middle */
       return false;
     }
 
-    for (lit_utf8_size_t offset = 0; offset < extra_bytes_count; ++offset)
+    if (first_byte < LIT_UTF8_3_BYTE_MARKER)
     {
-      c = utf8_buf_p[idx + offset];
-      if ((c & LIT_UTF8_EXTRA_BYTE_MASK) != LIT_UTF8_EXTRA_BYTE_MARKER)
+      continue;
+    }
+
+    if (idx >= end || (*idx++ & LIT_UTF8_EXTRA_BYTE_MASK) != LIT_UTF8_EXTRA_BYTE_MARKER)
+    {
+      return false;
+    }
+
+    if (first_byte < LIT_UTF8_4_BYTE_MARKER)
+    {
+      if (first_byte == LIT_UTF8_3_BYTE_MARKER && (second_byte & LIT_UTF8_2_BYTE_MASK) == LIT_UTF8_EXTRA_BYTE_MARKER)
       {
-        /* invalid continuation byte */
         return false;
       }
-      code_point <<= LIT_UTF8_BITS_IN_EXTRA_BYTES;
-      code_point |= (c & LIT_UTF8_LAST_6_BITS_MASK);
-    }
 
-    if (code_point < min_code_point
-        || code_point > LIT_UNICODE_CODE_POINT_MAX)
-    {
-      /* utf-8 string doesn't encode valid unicode code point */
-      return false;
-    }
-
-    if (is_strict)
-    {
-      is_prev_code_point_high_surrogate = false;
-
-      if (code_point >= LIT_UTF16_HIGH_SURROGATE_MIN
-          && code_point <= LIT_UTF16_HIGH_SURROGATE_MAX)
+      if (is_strict && first_byte == LIT_UTF8_SURROGATE_MARKER && second_byte >= LIT_UTF8_HIGH_SURROGATE_MIN
+          && second_byte <= LIT_UTF8_HIGH_SURROGATE_MAX && idx + 3 <= end && idx[0] == LIT_UTF8_SURROGATE_MARKER
+          && idx[1] >= LIT_UTF8_LOW_SURROGATE_MIN && idx[1] <= LIT_UTF8_LOW_SURROGATE_MAX)
       {
-        is_prev_code_point_high_surrogate = true;
-      }
-      else if (code_point >= LIT_UTF16_LOW_SURROGATE_MIN
-               && code_point <= LIT_UTF16_LOW_SURROGATE_MAX
-               && is_prev_code_point_high_surrogate)
-      {
-        /* sequence of high and low surrogate is not allowed */
         return false;
       }
+      continue;
     }
 
-    idx += extra_bytes_count;
+    if (idx >= end || first_byte > LIT_UTF8_1_BYTE_MAX
+        || (first_byte == LIT_UTF8_4_BYTE_MARKER && second_byte <= LIT_UTF8_EXTRA_BYTE_MARKER)
+        || (first_byte == LIT_UTF8_1_BYTE_MAX && second_byte > LIT_UTF8_2_BYTE_MAX)
+        || (*idx++ & LIT_UTF8_EXTRA_BYTE_MASK) != LIT_UTF8_EXTRA_BYTE_MARKER)
+    {
+      return false;
+    }
   }
 
   return true;
@@ -603,8 +587,7 @@ lit_utf8_decr (const lit_utf8_byte_t **buf_p) /**< [in,out] buffer with characte
   do
   {
     current_p--;
-  }
-  while ((*(current_p) & LIT_UTF8_EXTRA_BYTE_MASK) == LIT_UTF8_EXTRA_BYTE_MARKER);
+  } while ((*current_p & LIT_UTF8_EXTRA_BYTE_MASK) == LIT_UTF8_EXTRA_BYTE_MARKER);
 
   *buf_p = current_p;
 } /* lit_utf8_decr */
@@ -672,8 +655,7 @@ lit_utf8_string_code_unit_at (const lit_utf8_byte_t *utf8_buf_p, /**< utf-8 stri
   {
     JERRY_ASSERT (current_p < utf8_buf_p + utf8_buf_size);
     current_p += lit_read_code_unit_from_cesu8 (current_p, &code_unit);
-  }
-  while (code_unit_offset--);
+  } while (code_unit_offset--);
 
   return code_unit;
 } /* lit_utf8_string_code_unit_at */
@@ -778,7 +760,7 @@ lit_code_point_to_cesu8 (lit_code_point_t code_point, /**< code point */
 lit_utf8_size_t
 lit_code_point_to_utf8 (lit_code_point_t code_point, /**< code point */
                         lit_utf8_byte_t *buf) /**< buffer where to store the result,
-                                              *   its size should be at least 4 bytes */
+                                               *   its size should be at least 4 bytes */
 {
   if (code_point <= LIT_UTF8_1_BYTE_CODE_POINT_MAX)
   {
@@ -842,57 +824,51 @@ lit_code_point_to_utf8 (lit_code_point_t code_point, /**< code point */
 
 /**
  * Convert cesu-8 string to an utf-8 string and put it into the buffer.
- * It is the caller's responsibility to make sure that the string fits in the buffer.
+ * String will be truncated to fit the buffer.
  *
  * @return number of bytes copied to the buffer.
  */
 lit_utf8_size_t
-lit_convert_cesu8_string_to_utf8_string (const lit_utf8_byte_t *cesu8_string, /**< cesu-8 string */
+lit_convert_cesu8_string_to_utf8_string (const lit_utf8_byte_t *cesu8_string_p, /**< cesu-8 string */
                                          lit_utf8_size_t cesu8_size, /**< size of cesu-8 string */
-                                         lit_utf8_byte_t *utf8_string, /**< destination utf-8 buffer pointer
-                                                                        * (can be NULL if buffer_size == 0) */
+                                         lit_utf8_byte_t *utf8_string_p, /**< destination utf-8 buffer pointer
+                                                                          * (can be NULL if buffer_size == 0) */
                                          lit_utf8_size_t utf8_size) /**< size of utf-8 buffer */
 {
-  const lit_utf8_byte_t *cesu8_pos = cesu8_string;
-  const lit_utf8_byte_t *cesu8_end_pos = cesu8_string + cesu8_size;
+  const lit_utf8_byte_t *cesu8_cursor_p = cesu8_string_p;
+  const lit_utf8_byte_t *cesu8_end_p = cesu8_string_p + cesu8_size;
 
-  lit_utf8_byte_t *utf8_pos = utf8_string;
-  lit_utf8_byte_t *utf8_end_pos = utf8_string + utf8_size;
+  lit_utf8_byte_t *utf8_cursor_p = utf8_string_p;
+  lit_utf8_byte_t *utf8_end_p = utf8_string_p + utf8_size;
 
-  lit_utf8_size_t size = 0;
-
-  ecma_char_t prev_ch = 0;
-  lit_utf8_size_t prev_ch_size = 0;
-
-  while (cesu8_pos < cesu8_end_pos)
+  while (cesu8_cursor_p < cesu8_end_p)
   {
-    ecma_char_t ch;
-    lit_utf8_size_t code_unit_size = lit_read_code_unit_from_cesu8 (cesu8_pos, &ch);
+    lit_code_point_t cp;
+    lit_utf8_size_t read_size = lit_read_code_point_from_cesu8 (cesu8_cursor_p, cesu8_end_p, &cp);
+    lit_utf8_size_t encoded_size = (cp >= LIT_UTF16_FIRST_SURROGATE_CODE_POINT) ? 4 : read_size;
 
-    if (lit_is_code_point_utf16_low_surrogate (ch) && lit_is_code_point_utf16_high_surrogate (prev_ch))
+    if (utf8_cursor_p + encoded_size > utf8_end_p)
     {
-      JERRY_ASSERT (code_unit_size == prev_ch_size);
-      utf8_pos -= prev_ch_size;
-      lit_code_point_t code_point = lit_convert_surrogate_pair_to_code_point (prev_ch, ch);
-      lit_code_point_to_utf8 (code_point, utf8_pos);
-      size++;
+      break;
+    }
+
+    if (cp >= LIT_UTF16_FIRST_SURROGATE_CODE_POINT)
+    {
+      lit_code_point_to_utf8 (cp, utf8_cursor_p);
     }
     else
     {
-      memcpy (utf8_pos, cesu8_pos, code_unit_size);
-      size += code_unit_size;
+      memcpy (utf8_cursor_p, cesu8_cursor_p, encoded_size);
     }
 
-    utf8_pos = utf8_string + size;
-    cesu8_pos += code_unit_size;
-    prev_ch = ch;
-    prev_ch_size = code_unit_size;
+    utf8_cursor_p += encoded_size;
+    cesu8_cursor_p += read_size;
   }
 
-  JERRY_ASSERT (cesu8_pos == cesu8_end_pos);
-  JERRY_ASSERT (utf8_pos <= utf8_end_pos);
+  JERRY_ASSERT (cesu8_cursor_p <= cesu8_end_p);
+  JERRY_ASSERT (utf8_cursor_p <= utf8_end_p);
 
-  return size;
+  return (lit_utf8_byte_t) (utf8_cursor_p - utf8_string_p);
 } /* lit_convert_cesu8_string_to_utf8_string */
 
 /**
@@ -927,10 +903,11 @@ lit_convert_surrogate_pair_to_code_point (ecma_char_t high_surrogate, /**< high 
  * @return true - if first string is less than second string,
  *         false - otherwise
  */
-bool lit_compare_utf8_strings_relational (const lit_utf8_byte_t *string1_p, /**< utf-8 string */
-                                          lit_utf8_size_t string1_size, /**< string size */
-                                          const lit_utf8_byte_t *string2_p, /**< utf-8 string */
-                                          lit_utf8_size_t string2_size) /**< string size */
+bool
+lit_compare_utf8_strings_relational (const lit_utf8_byte_t *string1_p, /**< utf-8 string */
+                                     lit_utf8_size_t string1_size, /**< string size */
+                                     const lit_utf8_byte_t *string2_p, /**< utf-8 string */
+                                     lit_utf8_size_t string2_size) /**< string size */
 {
   lit_utf8_byte_t *string1_pos = (lit_utf8_byte_t *) string1_p;
   lit_utf8_byte_t *string2_pos = (lit_utf8_byte_t *) string2_p;

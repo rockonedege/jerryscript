@@ -14,17 +14,18 @@
  */
 
 #include "ecma-alloc.h"
+#include "ecma-builtin-helpers.h"
 #include "ecma-builtins.h"
 #include "ecma-conversion.h"
 #include "ecma-exceptions.h"
+#include "ecma-function-object.h"
 #include "ecma-gc.h"
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
-#include "ecma-builtin-helpers.h"
 #include "ecma-objects.h"
-#include "ecma-function-object.h"
-#include "jrt.h"
+
 #include "jcontext.h"
+#include "jrt.h"
 
 #if JERRY_BUILTIN_ERRORS
 
@@ -32,7 +33,7 @@
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-referenceerror.inc.h"
-#define BUILTIN_UNDERSCORED_ID reference_error
+#define BUILTIN_UNDERSCORED_ID  reference_error
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -66,9 +67,6 @@ ecma_value_t
 ecma_builtin_reference_error_dispatch_construct (const ecma_value_t *arguments_list_p, /**< arguments list */
                                                  uint32_t arguments_list_len) /**< number of arguments */
 {
-#if !JERRY_ESNEXT
-  return ecma_builtin_reference_error_dispatch_call (arguments_list_p, arguments_list_len);
-#else /* JERRY_ESNEXT */
   ecma_object_t *proto_p = ecma_op_get_prototype_from_constructor (JERRY_CONTEXT (current_new_target_p),
                                                                    ECMA_BUILTIN_ID_REFERENCE_ERROR_PROTOTYPE);
 
@@ -88,7 +86,6 @@ ecma_builtin_reference_error_dispatch_construct (const ecma_value_t *arguments_l
   ecma_deref_object (proto_p);
 
   return result;
-#endif /* JERRY_ESNEXT */
 } /* ecma_builtin_reference_error_dispatch_construct */
 
 /**

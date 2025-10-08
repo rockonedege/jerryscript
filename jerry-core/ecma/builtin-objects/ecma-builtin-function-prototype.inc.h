@@ -23,22 +23,13 @@
  *  (property name, object pointer getter) */
 
 /* ECMA-262 v5, 15.3.4.1 */
-OBJECT_VALUE (LIT_MAGIC_STRING_CONSTRUCTOR,
-              ECMA_BUILTIN_ID_FUNCTION,
-              ECMA_PROPERTY_CONFIGURABLE_WRITABLE)
+OBJECT_VALUE (LIT_MAGIC_STRING_CONSTRUCTOR, ECMA_BUILTIN_ID_FUNCTION, ECMA_PROPERTY_CONFIGURABLE_WRITABLE)
 
 /* Number properties:
  *  (property name, object pointer getter) */
 
-NUMBER_VALUE (LIT_MAGIC_STRING_LENGTH,
-              0,
-              ECMA_PROPERTY_FLAG_DEFAULT_LENGTH)
-
-#if JERRY_ESNEXT
-STRING_VALUE (LIT_MAGIC_STRING_NAME,
-              LIT_MAGIC_STRING__EMPTY,
-              ECMA_PROPERTY_FLAG_CONFIGURABLE)
-#endif /* JERRY_ESNEXT */
+NUMBER_VALUE (LIT_MAGIC_STRING_LENGTH, 0, ECMA_PROPERTY_FLAG_DEFAULT_LENGTH)
+STRING_VALUE (LIT_MAGIC_STRING_NAME, LIT_MAGIC_STRING__EMPTY, ECMA_PROPERTY_FLAG_CONFIGURABLE)
 
 /* Routine properties:
  *  (property name, C routine name, arguments number or NON_FIXED, value of the routine's length property) */
@@ -47,7 +38,6 @@ ROUTINE (LIT_MAGIC_STRING_APPLY, ECMA_FUNCTION_PROTOTYPE_APPLY, 2, 2)
 ROUTINE (LIT_MAGIC_STRING_CALL, ECMA_FUNCTION_PROTOTYPE_CALL, NON_FIXED, 1)
 ROUTINE (LIT_MAGIC_STRING_BIND, ECMA_FUNCTION_PROTOTYPE_BIND, NON_FIXED, 1)
 
-#if JERRY_ESNEXT
 /**
  * ECMA-262 v6.0 19.2.3.6 @@hasInstance
  *  the property attributes are: { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }.
@@ -61,6 +51,5 @@ ACCESSOR_BUILTIN_FUNCTION (LIT_MAGIC_STRING_CALLER,
                            ECMA_BUILTIN_ID_TYPE_ERROR_THROWER,
                            ECMA_BUILTIN_ID_TYPE_ERROR_THROWER,
                            ECMA_PROPERTY_FLAG_CONFIGURABLE)
-#endif /* JERRY_ESNEXT */
 
 #include "ecma-builtin-helpers-macro-undefs.inc.h"

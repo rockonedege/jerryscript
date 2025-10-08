@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import argparse
 import fnmatch
 import json
@@ -26,11 +24,12 @@ import shutil
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JERRY_CORE = os.path.join(ROOT_DIR, 'jerry-core')
-JERRY_PORT = os.path.join(ROOT_DIR, 'jerry-port', 'default')
+JERRY_PORT = os.path.join(ROOT_DIR, 'jerry-port')
 JERRY_MATH = os.path.join(ROOT_DIR, 'jerry-math')
+JERRY_EXT = os.path.join(ROOT_DIR, 'jerry-ext')
 
 
-class Amalgamator(object):
+class Amalgamator:
     # pylint: disable=too-many-instance-attributes
 
     _RE_INCLUDE = re.compile(r'\s*#include ("|<)(.*?)("|>)\n$')
@@ -70,7 +69,7 @@ class Amalgamator(object):
             return
 
         normalized_path = repr(os.path.normpath(filename))[1:-1]
-        line_info = '#line %d "%s"\n' % (line_number, normalized_path)
+        line_info = f'#line {line_number} "{normalized_path}"\n'
 
         if self._output and self._output[-1].startswith('#line'):
             # Avoid emitting multiple line infos in sequence, just overwrite the last one
@@ -92,7 +91,7 @@ class Amalgamator(object):
         self._emit_lineinfo(1, filename)
 
         line_idx = 0
-        with open(filename, 'r') as input_file:
+        with open(filename, 'r', encoding='utf8') as input_file:
             in_copyright = False
             for line in input_file:
                 line_idx += 1
@@ -166,7 +165,7 @@ class Amalgamator(object):
             out_fp.write(line)
 
         for include in self._extra_includes:
-            out_fp.write('#include "%s"\n' % include)
+            out_fp.write(f'#include "{include}"\n')
 
         for line in self._output:
             out_fp.write(line)
@@ -242,7 +241,7 @@ def amalgamate(base_dir, input_files=(), output_file=None,
         for fname in sorted(c_files.values(), reverse=True):
             amalgam.add_file(fname)
 
-    with open(output_file, 'w') as output:
+    with open(output_file, 'w', encoding='utf8') as output:
         amalgam.write_output(output)
 
 
@@ -250,7 +249,7 @@ def amalgamate_jerry_core(output_dir):
     amalgamate(
         base_dir=JERRY_CORE,
         input_files=[
-            os.path.join(JERRY_CORE, 'api', 'jerry.c'),
+            os.path.join(JERRY_CORE, 'api', 'jerryscript.c'),
             # Add the global built-in by default to include some common items
             # to avoid problems with common built-in headers
             os.path.join(JERRY_CORE, 'ecma', 'builtin-objects', 'ecma-builtins.c'),
@@ -259,7 +258,6 @@ def amalgamate_jerry_core(output_dir):
         append_c_files=True,
         remove_includes=[
             'jerryscript.h',
-            'jerryscript-port.h',
             'jerryscript-compiler.h',
             'jerryscript-core.h',
             'jerryscript-debugger.h',
@@ -275,6 +273,7 @@ def amalgamate_jerry_core(output_dir):
         base_dir=JERRY_CORE,
         input_files=[
             os.path.join(JERRY_CORE, 'include', 'jerryscript.h'),
+            os.path.join(JERRY_CORE, 'include', 'jerryscript-port.h'),
             os.path.join(JERRY_CORE, 'include', 'jerryscript-debugger-transport.h'),
         ],
         output_file=os.path.join(output_dir, 'jerryscript.h'),
@@ -286,31 +285,90 @@ def amalgamate_jerry_core(output_dir):
                     os.path.join(output_dir, 'jerryscript-config.h'))
 
 
-def amalgamate_jerry_port_default(output_dir):
+def amalgamate_jerry_port(output_dir):
     amalgamate(
         base_dir=JERRY_PORT,
-        output_file=os.path.join(output_dir, 'jerryscript-port-default.c'),
+        output_file=os.path.join(output_dir, 'jerryscript-port.c'),
         append_c_files=True,
         remove_includes=[
             'jerryscript-port.h',
-            'jerryscript-port-default.h',
-            'jerryscript-debugger.h',
         ],
         extra_includes=[
             'jerryscript.h',
-            'jerryscript-port-default.h',
+        ],
+    )
+
+
+def amalgamate_jerry_ext(output_dir):
+    amalgamate(
+        base_dir=JERRY_EXT,
+        input_files=[
+            os.path.join(JERRY_EXT, 'arg', 'arg.c'),
+            os.path.join(JERRY_EXT, 'arg', 'arg-js-iterator-helper.c'),
+            os.path.join(JERRY_EXT, 'arg', 'arg-transform-functions.c'),
+            os.path.join(JERRY_EXT, 'handle-scope', 'handle-scope.c'),
+            os.path.join(JERRY_EXT, 'handle-scope', 'handle-scope-allocator.c'),
+            os.path.join(JERRY_EXT, 'module', 'module.c'),
+            os.path.join(JERRY_EXT, 'util', 'handlers.c'),
+            os.path.join(JERRY_EXT, 'util', 'print.c'),
+            os.path.join(JERRY_EXT, 'util', 'properties.c'),
+            os.path.join(JERRY_EXT, 'util', 'repl.c'),
+            os.path.join(JERRY_EXT, 'util', 'sources.c'),
+            os.path.join(JERRY_EXT, 'util', 'test262.c'),
+        ],
+        output_file=os.path.join(output_dir, 'jerryscript-ext.c'),
+        append_c_files=True,
+        remove_includes=[
+            'jerryscript.h',
+            'jerryscript-port.h',
+            'jerryscript-types.h',
+            'jerryscript-core.h',
+            'jerryscript-debugger.h',
+            'jerryscript-debugger-transport.h',
+            'jerryscript-ext/arg.h',
+            'jerryscript-ext/debugger.h',
+            'jerryscript-ext/handlers.h',
+            'jerryscript-ext/handle-scope.h',
+            'jerryscript-ext/print.h',
+            'jerryscript-ext/properties.h',
+            'jerryscript-ext/module.h',
+            'jerryscript-ext/repl.h',
+            'jerryscript-ext/sources.h',
+            'jerryscript-ext/test262.h',
+        ],
+        extra_includes=[
+            'jerryscript.h',
+            'jerryscript-ext.h',
         ],
     )
 
     amalgamate(
-        base_dir=JERRY_PORT,
-        input_files=[os.path.join(JERRY_PORT, 'include', 'jerryscript-port-default.h')],
-        output_file=os.path.join(output_dir, 'jerryscript-port-default.h'),
+        base_dir=JERRY_EXT,
+        input_files=[
+            os.path.join(JERRY_EXT, 'common', 'jext-common.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'arg.h'),
+            os.path.join(JERRY_EXT, 'arg', 'arg-internal.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'arg.impl.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'handlers.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'handle-scope.h'),
+            os.path.join(JERRY_EXT, 'handle-scope', 'handle-scope-internal.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'module.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'print.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'properties.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'repl.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'sources.h'),
+            os.path.join(JERRY_EXT, 'include', 'jerryscript-ext', 'test262.h'),
+        ],
+        output_file=os.path.join(output_dir, 'jerryscript-ext.h'),
         remove_includes=[
+            'jerryscript.h',
             'jerryscript-port.h',
+            'jerryscript-types.h',
+            'jerryscript-ext/handle-scope.h'
+        ],
+        extra_includes=[
             'jerryscript.h',
         ],
-        extra_includes=['jerryscript.h'],
     )
 
 
@@ -328,10 +386,12 @@ def main():
     parser = argparse.ArgumentParser(description='Generate amalgamated sources.')
     parser.add_argument('--jerry-core', action='store_true',
                         help='amalgamate jerry-core files')
-    parser.add_argument('--jerry-port-default', action='store_true',
-                        help='amalgamate jerry-port-default files')
+    parser.add_argument('--jerry-port', action='store_true',
+                        help='amalgamate jerry-port files')
     parser.add_argument('--jerry-math', action='store_true',
                         help='amalgamate jerry-math files')
+    parser.add_argument('--jerry-ext', action='store_true',
+                        help='amalgamate jerry-ext files')
     parser.add_argument('--output-dir', metavar='DIR', default='amalgam',
                         help='output dir (default: %(default)s)')
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -350,11 +410,15 @@ def main():
     if args.jerry_core:
         amalgamate_jerry_core(args.output_dir)
 
-    if args.jerry_port_default:
-        amalgamate_jerry_port_default(args.output_dir)
+    if args.jerry_port:
+        amalgamate_jerry_port(args.output_dir)
 
     if args.jerry_math:
         amalgamate_jerry_math(args.output_dir)
+
+    if args.jerry_ext:
+        amalgamate_jerry_ext(args.output_dir)
+
 
 
 if __name__ == '__main__':

@@ -21,13 +21,14 @@
 #include "ecma-globals.h"
 #include "ecma-helpers.h"
 #include "ecma-objects.h"
+
 #include "jrt.h"
 
 #define ECMA_BUILTINS_INTERNAL
 #include "ecma-builtins-internal.h"
 
 #define BUILTIN_INC_HEADER_NAME "ecma-builtin-type-error-thrower.inc.h"
-#define BUILTIN_UNDERSCORED_ID type_error_thrower
+#define BUILTIN_UNDERSCORED_ID  type_error_thrower
 #include "ecma-builtin-internal-routines-template.inc.h"
 
 /** \addtogroup ecma ECMA
@@ -54,8 +55,7 @@ ecma_builtin_type_error_thrower_dispatch_call (const ecma_value_t *arguments_lis
 {
   JERRY_ASSERT (arguments_list_len == 0 || arguments_list_p != NULL);
 
-  return ecma_raise_type_error (ECMA_ERR_MSG ("'caller', 'callee', and 'arguments' properties may not be accessed"
-                                              " on strict mode functions or the arguments objects for calls to them"));
+  return ecma_raise_type_error (ECMA_ERR_CANNOT_ACCESS_CALLER_CALLE_ARGUMENTS);
 } /* ecma_builtin_type_error_thrower_dispatch_call */
 
 /**

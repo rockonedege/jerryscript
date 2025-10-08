@@ -19,6 +19,7 @@
 #include "ecma-exceptions.h"
 #include "ecma-helpers.h"
 #include "ecma-objects.h"
+
 #include "opcodes.h"
 
 /** \addtogroup vm Virtual machine
@@ -44,8 +45,7 @@ do_number_bitwise_logic (number_bitwise_logic_op op, /**< number bitwise logic o
                          ecma_value_t left_value, /**< left value */
                          ecma_value_t right_value) /**< right value */
 {
-  JERRY_ASSERT (!ECMA_IS_VALUE_ERROR (left_value)
-                && !ECMA_IS_VALUE_ERROR (right_value));
+  JERRY_ASSERT (!ECMA_IS_VALUE_ERROR (left_value) && !ECMA_IS_VALUE_ERROR (right_value));
 
   ecma_number_t left_number;
   left_value = ecma_op_to_numeric (left_value, &left_number, ECMA_TO_NUMERIC_ALLOW_BIGINT);
@@ -93,7 +93,7 @@ do_number_bitwise_logic (number_bitwise_logic_op op, /**< number bitwise logic o
       }
       case NUMBER_BITWISE_SHIFT_LEFT:
       {
-        result = (ecma_number_t) (ecma_number_to_int32 (left_number) << (right_uint32 & 0x1F));
+        result = (ecma_number_t) ((int32_t) ((uint32_t) ecma_number_to_int32 (left_number) << (right_uint32 & 0x1F)));
         break;
       }
       case NUMBER_BITWISE_SHIFT_RIGHT:
@@ -157,7 +157,7 @@ do_number_bitwise_logic (number_bitwise_logic_op op, /**< number bitwise logic o
       {
         JERRY_ASSERT (op == NUMBER_BITWISE_SHIFT_URIGHT);
 
-        ret_value = ecma_raise_type_error (ECMA_ERR_MSG ("Unsigned right shift is not allowed for BigInts"));
+        ret_value = ecma_raise_type_error (ECMA_ERR_UNSIGNED_RIGHT_SHIFT_IS_NOT_ALLOWED_FOR_BIGINTS);
         break;
       }
     }

@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import argparse
 import collections
 import hashlib
@@ -25,11 +23,8 @@ import subprocess
 import sys
 import settings
 
-if sys.version_info.major >= 3:
-    import runners.util as util  # pylint: disable=import-error
-else:
-    sys.path.append(os.path.dirname(os.path.realpath(__file__)) + '/runners')
-    import util
+from runners import util
+from runners.util import TERM_NORMAL, TERM_YELLOW, TERM_BLUE, TERM_RED
 
 OUTPUT_DIR = os.path.join(settings.PROJECT_DIR, 'build', 'tests')
 
@@ -39,10 +34,8 @@ Options.__new__.__defaults__ = ([], [], False)
 def skip_if(condition, desc):
     return desc if condition else False
 
-OPTIONS_COMMON = ['--lto=off']
+OPTIONS_COMMON = ['--lto=off', '--function-to-string=on']
 OPTIONS_PROFILE_MIN = ['--profile=minimal']
-OPTIONS_PROFILE_ES51 = ['--profile=es5.1']
-OPTIONS_PROFILE_ESNEXT = ['--profile=es.next', '--function-to-string=on']
 OPTIONS_STACK_LIMIT = ['--stack-limit=96']
 OPTIONS_GC_MARK_LIMIT = ['--gc-mark-limit=16']
 OPTIONS_MEM_STRESS = ['--mem-stress-test=on']
@@ -50,65 +43,43 @@ OPTIONS_DEBUG = ['--debug']
 OPTIONS_SNAPSHOT = ['--snapshot-save=on', '--snapshot-exec=on', '--jerry-cmdline-snapshot=on']
 OPTIONS_UNITTESTS = ['--unittests=on', '--jerry-cmdline=off', '--error-messages=on',
                      '--snapshot-save=on', '--snapshot-exec=on', '--vm-exec-stop=on',
-                     '--vm-throw=on', '--line-info=on', '--mem-stats=on']
+                     '--vm-throw=on', '--line-info=on', '--mem-stats=on', '--promise-callback=on']
 OPTIONS_DOCTESTS = ['--doctests=on', '--jerry-cmdline=off', '--error-messages=on',
                     '--snapshot-save=on', '--snapshot-exec=on', '--vm-exec-stop=on']
+OPTIONS_PROMISE_CALLBACK = ['--promise-callback=on']
 
 # Test options for unittests
 JERRY_UNITTESTS_OPTIONS = [
-    Options('unittests-es.next',
-            OPTIONS_COMMON + OPTIONS_UNITTESTS + OPTIONS_PROFILE_ESNEXT
-            + ['--promise-callback=on']),
-    Options('doctests-es.next',
-            OPTIONS_COMMON + OPTIONS_DOCTESTS + OPTIONS_PROFILE_ESNEXT
-            + ['--promise-callback=on']),
-    Options('unittests-es5.1',
-            OPTIONS_COMMON + OPTIONS_UNITTESTS + OPTIONS_PROFILE_ES51),
-    Options('doctests-es5.1',
-            OPTIONS_COMMON + OPTIONS_DOCTESTS + OPTIONS_PROFILE_ES51),
-    Options('unittests-es5.1-init-fini',
-            OPTIONS_COMMON + OPTIONS_UNITTESTS + OPTIONS_PROFILE_ES51
-            + ['--cmake-param=-DFEATURE_INIT_FINI=ON'],
-            skip=skip_if((sys.platform == 'win32'), 'FEATURE_INIT_FINI build flag isn\'t supported on Windows,' +
-                         ' because Microsoft Visual C/C++ Compiler doesn\'t support' +
-                         ' library constructors and destructors.')),
-    Options('unittests-es5.1-math',
-            OPTIONS_COMMON + OPTIONS_UNITTESTS + OPTIONS_PROFILE_ES51
-            + ['--jerry-math=on']),
+    Options('doctests',
+            OPTIONS_COMMON + OPTIONS_DOCTESTS + OPTIONS_PROMISE_CALLBACK),
+    Options('unittests',
+            OPTIONS_COMMON + OPTIONS_UNITTESTS),
+    Options('unittests-init-fini',
+            OPTIONS_COMMON + OPTIONS_UNITTESTS
+            + ['--cmake-param=-DFEATURE_INIT_FINI=ON']),
+    Options('unittests-math',
+            OPTIONS_COMMON + OPTIONS_UNITTESTS + ['--jerry-math=on']),
 ]
 
 # Test options for jerry-tests
 JERRY_TESTS_OPTIONS = [
-    Options('jerry_tests-es.next',
-            OPTIONS_COMMON + OPTIONS_PROFILE_ESNEXT + OPTIONS_STACK_LIMIT + OPTIONS_GC_MARK_LIMIT
-            + OPTIONS_MEM_STRESS),
-    Options('jerry_tests-es5.1',
-            OPTIONS_COMMON + OPTIONS_PROFILE_ES51 + OPTIONS_STACK_LIMIT + OPTIONS_GC_MARK_LIMIT),
-    Options('jerry_tests-es5.1-snapshot',
-            OPTIONS_COMMON + OPTIONS_PROFILE_ES51 + OPTIONS_SNAPSHOT + OPTIONS_STACK_LIMIT + OPTIONS_GC_MARK_LIMIT,
+    Options('jerry_tests',
+            OPTIONS_COMMON +  OPTIONS_STACK_LIMIT + OPTIONS_GC_MARK_LIMIT + OPTIONS_MEM_STRESS),
+    Options('jerry_tests-snapshot',
+            OPTIONS_COMMON + OPTIONS_SNAPSHOT + OPTIONS_STACK_LIMIT + OPTIONS_GC_MARK_LIMIT,
             ['--snapshot']),
-    Options('jerry_tests-es5.1-cpointer_32bit',
-            OPTIONS_COMMON + OPTIONS_PROFILE_ES51 + OPTIONS_STACK_LIMIT + OPTIONS_GC_MARK_LIMIT
+    Options('jerry_tests-cpointer_32bit',
+            OPTIONS_COMMON + OPTIONS_STACK_LIMIT + OPTIONS_GC_MARK_LIMIT
             + ['--cpointer-32bit=on', '--mem-heap=1024']),
-    Options('jerry_tests-es5.1-external_context',
-            OPTIONS_COMMON + OPTIONS_PROFILE_ES51 + OPTIONS_STACK_LIMIT + OPTIONS_GC_MARK_LIMIT
+    Options('jerry_tests-external_context',
+            OPTIONS_COMMON + OPTIONS_STACK_LIMIT + OPTIONS_GC_MARK_LIMIT
             + ['--external-context=on']),
 ]
 
 # Test options for test262
 TEST262_TEST_SUITE_OPTIONS = [
-    Options('test262_tests', OPTIONS_PROFILE_ES51),
-]
-
-# Test options for test262-es2015
-TEST262_ES2015_TEST_SUITE_OPTIONS = [
-    Options('test262_tests_es2015', OPTIONS_PROFILE_ESNEXT + ['--line-info=on', '--error-messages=on']),
-]
-
-# Test options for test262-esnext
-TEST262_ESNEXT_TEST_SUITE_OPTIONS = [
-    Options('test262_tests_esnext', OPTIONS_PROFILE_ESNEXT
-            + ['--line-info=on', '--error-messages=on', '--mem-heap=20480']),
+    Options('test262',
+            OPTIONS_COMMON + ['--line-info=on', '--error-messages=on', '--mem-heap=20480']),
 ]
 
 # Test options for jerry-debugger
@@ -188,27 +159,25 @@ def get_arguments():
                         help='Run doxygen')
     parser.add_argument('--check-pylint', action='store_true',
                         help='Run pylint')
-    parser.add_argument('--check-vera', action='store_true',
-                        help='Run vera check')
+    parser.add_argument('--check-format', action='store_true',
+                        help='Run format check')
     parser.add_argument('--check-license', action='store_true',
                         help='Run license check')
-    parser.add_argument('--check-magic-strings', action='store_true',
+    parser.add_argument('--check-strings', action='store_true',
                         help='Run "magic string source code generator should be executed" check')
+    parser.add_argument('--build-config', type=str, default=None,
+                        help='Build config, when not specified, auto detect it')
     parser.add_argument('--build-debug', action='store_true',
                         help='Build debug version jerryscript')
+    parser.add_argument('--run-check-timeout', type=int, default=30 * 60,
+                        help='Specify run_check timeout, default to 30 minutes, unit: second')
     parser.add_argument('--jerry-debugger', action='store_true',
                         help='Run jerry-debugger tests')
     parser.add_argument('--jerry-tests', action='store_true',
                         help='Run jerry-tests')
-    parser.add_argument('--test262', action='store_true',
-                        help='Run test262 - ES5.1')
-    parser.add_argument('--test262-es2015', default=False, const='default',
+    parser.add_argument('--test262', default=False, const='default',
                         nargs='?', choices=['default', 'all', 'update'],
-                        help='Run test262 - ES2015. default: all tests except excludelist, ' +
-                        'all: all tests, update: all tests and update excludelist')
-    parser.add_argument('--test262-esnext', default=False, const='default',
-                        nargs='?', choices=['default', 'all', 'update'],
-                        help='Run test262 - ESnext. default: all tests except excludelist, ' +
+                        help='Run test262 - default: all tests except excludelist, ' +
                         'all: all tests, update: all tests and update excludelist')
     parser.add_argument('--test262-test-list', metavar='LIST',
                         help='Add a comma separated list of tests or directories to run in test262 test suite')
@@ -225,33 +194,26 @@ def get_arguments():
 
     script_args = parser.parse_args()
 
-    if script_args.test262_test_list and not \
-       (script_args.test262 or script_args.test262_es2015 or script_args.test262_esnext):
-        print("--test262-test-list is only allowed with --test262 or --test262-es2015 or --test262-esnext\n")
-        parser.print_help()
-        sys.exit(1)
-
     return script_args
 
 BINARY_CACHE = {}
 
-TERM_NORMAL = '\033[0m'
-TERM_YELLOW = '\033[1;33m'
-TERM_BLUE = '\033[1;34m'
-TERM_RED = '\033[1;31m'
-
 def report_command(cmd_type, cmd, env=None):
-    sys.stderr.write('%s%s%s\n' % (TERM_BLUE, cmd_type, TERM_NORMAL))
+    sys.stderr.write(f'{TERM_BLUE}{cmd_type}{TERM_NORMAL}\n')
     if env is not None:
-        sys.stderr.write(''.join('%s%s=%r \\%s\n' % (TERM_BLUE, var, val, TERM_NORMAL)
+        sys.stderr.write(''.join(f'{TERM_BLUE}{var}={val!r} \\{TERM_NORMAL}\n'
                                  for var, val in sorted(env.items())))
-    sys.stderr.write('%s%s%s\n' % (TERM_BLUE, (' \\%s\n\t%s' % (TERM_NORMAL, TERM_BLUE)).join(cmd), TERM_NORMAL))
+    sys.stderr.write(f"{TERM_BLUE}" +
+                     f" \\{TERM_NORMAL}\n\t{TERM_BLUE}".join(cmd) +
+                     f"{TERM_NORMAL}\n")
+    sys.stderr.flush()
 
 def report_skip(job):
-    sys.stderr.write('%sSkipping: %s' % (TERM_YELLOW, job.name))
+    sys.stderr.write(f'{TERM_YELLOW}Skipping: {job.name}')
     if job.skip:
-        sys.stderr.write(' (%s)' % job.skip)
-    sys.stderr.write('%s\n' % TERM_NORMAL)
+        sys.stderr.write(f' ({job.skip})')
+    sys.stderr.write(f'{TERM_NORMAL}\n')
+    sys.stderr.flush()
 
 def create_binary(job, options):
     build_args = job.build_args[:]
@@ -268,27 +230,28 @@ def create_binary(job, options):
     build_cmd.append(settings.BUILD_SCRIPT)
     build_cmd.extend(build_args)
 
-    build_cmd.append('--builddir=%s' % build_dir_path)
+    build_cmd.append(f'--builddir={build_dir_path}')
 
     install_dir_path = os.path.join(build_dir_path, 'local')
-    build_cmd.append('--install=%s' % install_dir_path)
+    build_cmd.append(f'--install={install_dir_path}')
 
     if options.toolchain:
-        build_cmd.append('--toolchain=%s' % options.toolchain)
+        build_cmd.append(f'--toolchain={options.toolchain}')
 
     report_command('Build command:', build_cmd)
 
     binary_key = tuple(sorted(build_args))
     if binary_key in BINARY_CACHE:
         ret, build_dir_path = BINARY_CACHE[binary_key]
-        sys.stderr.write('(skipping: already built at %s with returncode %d)\n' % (build_dir_path, ret))
+        sys.stderr.write(f'(skipping: already built at {build_dir_path} with returncode {ret})\n')
+        sys.stderr.flush()
         return ret, build_dir_path
 
     try:
         subprocess.check_output(build_cmd)
         ret = 0
     except subprocess.CalledProcessError as err:
-        print(err.output)
+        print(err.output.decode("utf8"))
         ret = err.returncode
 
     BINARY_CACHE[binary_key] = (ret, build_dir_path)
@@ -318,26 +281,26 @@ def iterate_test_runner_jobs(jobs, options):
             yield job, ret_build, None
 
         if build_dir_path in tested_paths:
-            sys.stderr.write('(skipping: already tested with %s)\n' % build_dir_path)
+            sys.stderr.write(f'(skipping: already tested with {build_dir_path})\n')
+            sys.stderr.flush()
             continue
-        else:
-            tested_paths.add(build_dir_path)
+        tested_paths.add(build_dir_path)
 
         bin_path = get_binary_path(build_dir_path)
         bin_hash = hash_binary(bin_path)
 
         if bin_hash in tested_hashes:
-            sys.stderr.write('(skipping: already tested with equivalent %s)\n' % tested_hashes[bin_hash])
+            sys.stderr.write(f'(skipping: already tested with equivalent {tested_hashes[bin_hash]})\n')
+            sys.stderr.flush()
             continue
-        else:
-            tested_hashes[bin_hash] = build_dir_path
+        tested_hashes[bin_hash] = build_dir_path
 
         test_cmd = util.get_python_cmd_prefix()
         test_cmd.extend([settings.TEST_RUNNER_SCRIPT, '--engine', bin_path])
 
         yield job, ret_build, test_cmd
 
-def run_check(runnable, env=None):
+def run_check(options, runnable, env=None):
     report_command('Test command:', runnable, env=env)
 
     if env is not None:
@@ -345,16 +308,20 @@ def run_check(runnable, env=None):
         full_env.update(env)
         env = full_env
 
-    proc = subprocess.Popen(runnable, env=env)
-    proc.wait()
-    return proc.returncode
+    with subprocess.Popen(runnable, env=env) as proc:
+        try:
+            proc.wait(timeout=options.run_check_timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            return -1
+        return proc.returncode
 
 def run_jerry_debugger_tests(options):
     ret_build = ret_test = 0
     for job in DEBUGGER_TEST_OPTIONS:
         ret_build, build_dir_path = create_binary(job, options)
         if ret_build:
-            print("\n%sBuild failed%s\n" % (TERM_RED, TERM_NORMAL))
+            print(f"\n{TERM_RED}Build failed{TERM_NORMAL}\n")
             break
 
         for channel in ["websocket", "rawpacket"]:
@@ -373,7 +340,7 @@ def run_jerry_debugger_tests(options):
                     if job.test_args:
                         test_cmd.extend(job.test_args)
 
-                    ret_test |= run_check(test_cmd)
+                    ret_test |= run_check(options, test_cmd)
 
     return ret_build | ret_test
 
@@ -391,10 +358,10 @@ def run_jerry_tests(options):
 
         skip_list = []
 
-        if '--profile=es.next' in job.build_args:
-            skip_list.append(os.path.join('es5.1', ''))
-        else:
-            skip_list.append(os.path.join('es.next', ''))
+        if job.name == 'jerry_tests-snapshot':
+            with open(settings.SNAPSHOT_TESTS_SKIPLIST, 'r', encoding='utf8') as snapshot_skip_list:
+                for line in snapshot_skip_list:
+                    skip_list.append(line.rstrip())
 
         if options.skip_list:
             skip_list.append(options.skip_list)
@@ -405,42 +372,28 @@ def run_jerry_tests(options):
         if job.test_args:
             test_cmd.extend(job.test_args)
 
-        ret_test |= run_check(test_cmd, env=dict(TZ='UTC'))
+        ret_test |= run_check(options, test_cmd, env=dict(TZ='UTC'))
 
     return ret_build | ret_test
 
 def run_test262_test_suite(options):
     ret_build = ret_test = 0
 
-    jobs = []
-    if options.test262:
-        jobs.extend(TEST262_TEST_SUITE_OPTIONS)
-    if options.test262_es2015:
-        jobs.extend(TEST262_ES2015_TEST_SUITE_OPTIONS)
-    if options.test262_esnext:
-        jobs.extend(TEST262_ESNEXT_TEST_SUITE_OPTIONS)
+    jobs = TEST262_TEST_SUITE_OPTIONS
 
     for job in jobs:
         ret_build, build_dir_path = create_binary(job, options)
         if ret_build:
-            print("\n%sBuild failed%s\n" % (TERM_RED, TERM_NORMAL))
+            print(f"\n{TERM_RED}Build failed{TERM_NORMAL}\n")
             break
 
         test_cmd = util.get_python_cmd_prefix() + [
             settings.TEST262_RUNNER_SCRIPT,
             '--engine', get_binary_path(build_dir_path),
             '--test262-object',
-            '--test-dir', settings.TEST262_TEST_SUITE_DIR
+            '--test-dir', settings.TEST262_TEST_SUITE_DIR,
+            '--mode', options.test262
         ]
-
-        if job.name.endswith('es2015'):
-            test_cmd.append('--es2015')
-            test_cmd.append(options.test262_es2015)
-        elif job.name.endswith('esnext'):
-            test_cmd.append('--esnext')
-            test_cmd.append(options.test262_esnext)
-        else:
-            test_cmd.append('--es51')
 
         if job.test_args:
             test_cmd.extend(job.test_args)
@@ -449,7 +402,7 @@ def run_test262_test_suite(options):
             test_cmd.append('--test262-test-list')
             test_cmd.append(options.test262_test_list)
 
-        ret_test |= run_check(test_cmd, env=dict(TZ='America/Los_Angeles'))
+        ret_test |= run_check(options, test_cmd, env=dict(TZ='America/Los_Angeles'))
 
     return ret_build | ret_test
 
@@ -461,19 +414,22 @@ def run_unittests(options):
             continue
         ret_build, build_dir_path = create_binary(job, options)
         if ret_build:
-            print("\n%sBuild failed%s\n" % (TERM_RED, TERM_NORMAL))
+            print(f"\n{TERM_RED}Build failed{TERM_NORMAL}\n")
             break
 
-        if sys.platform == 'win32':
-            if options.build_debug:
-                build_config = "Debug"
+        build_config = options.build_config
+        if build_config is None:
+            if sys.platform == 'win32':
+                if options.build_debug:
+                    build_config = "Debug"
+                else:
+                    build_config = "MinSizeRel"
             else:
-                build_config = "MinSizeRel"
-        else:
-            build_config = ""
+                build_config = ""
 
 
         ret_test |= run_check(
+            options,
             util.get_python_cmd_prefix() +
             [settings.UNITTEST_RUNNER_SCRIPT] +
             [os.path.join(build_dir_path, 'tests', build_config)] +
@@ -490,7 +446,7 @@ def run_buildoption_test(options):
 
         ret, _ = create_binary(job, options)
         if ret:
-            print("\n%sBuild failed%s\n" % (TERM_RED, TERM_NORMAL))
+            print(f"\n{TERM_RED}Build failed{TERM_NORMAL}\n")
             break
 
     return ret
@@ -498,25 +454,29 @@ def run_buildoption_test(options):
 Check = collections.namedtuple('Check', ['enabled', 'runner', 'arg'])
 
 def main(options):
+    util.setup_stdio()
     checks = [
         Check(options.check_signed_off, run_check, [settings.SIGNED_OFF_SCRIPT]
               + {'tolerant': ['--tolerant'], 'gh-actions': ['--gh-actions']}.get(options.check_signed_off, [])),
         Check(options.check_cppcheck, run_check, [settings.CPPCHECK_SCRIPT]),
         Check(options.check_doxygen, run_check, [settings.DOXYGEN_SCRIPT]),
         Check(options.check_pylint, run_check, [settings.PYLINT_SCRIPT]),
-        Check(options.check_vera, run_check, [settings.VERA_SCRIPT]),
+        Check(options.check_format, run_check, [settings.FORMAT_SCRIPT]),
         Check(options.check_license, run_check, [settings.LICENSE_SCRIPT]),
-        Check(options.check_magic_strings, run_check, [settings.MAGIC_STRINGS_SCRIPT]),
-        Check(options.jerry_debugger, run_jerry_debugger_tests, options),
-        Check(options.jerry_tests, run_jerry_tests, options),
-        Check(options.test262 or options.test262_es2015 or options.test262_esnext, run_test262_test_suite, options),
-        Check(options.unittests, run_unittests, options),
-        Check(options.buildoption_test, run_buildoption_test, options),
+        Check(options.check_strings, run_check, [settings.STRINGS_SCRIPT]),
+        Check(options.jerry_debugger, run_jerry_debugger_tests, None),
+        Check(options.jerry_tests, run_jerry_tests, None),
+        Check(options.test262, run_test262_test_suite, None),
+        Check(options.unittests, run_unittests, None),
+        Check(options.buildoption_test, run_buildoption_test, None),
     ]
 
     for check in checks:
         if check.enabled or options.all:
-            ret = check.runner(check.arg)
+            if check.arg is None:
+                ret = check.runner(options)
+            else:
+                ret = check.runner(options, check.arg)
             if ret:
                 sys.exit(ret)
 
